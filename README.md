@@ -30,14 +30,12 @@ Below are the tools (and their minimum versions) required to build PmLogDaemon:
 - glib-2.0 2.32.1
 - make (any version)
 - openwebos/cmake-modules-webos 1.0.0 RC2
-- openwebos/PmLogLib 2.0.0
+- openwebos/PmLogLib 3.0.0
+- openwebos/PmLogLib-private 3.0.0
 - openwebos/librdx-stub 1.0.0
+- oepnwebos/libpbnjson 1.3.0
 - pkg-config 0.26
 - zlib 1.2.3
-
-Below is the component (and its minimum version) required to run PmLogDaemon:
-
-- openwebos/pmlogconf 2.0.0
 
 How to Build on Linux
 =====================
@@ -116,6 +114,7 @@ You will need to use `sudo` if you did not specify `WEBOS_INSTALL_ROOT`.
 All content, including all source code files and documentation files in this repository are:
 
 Copyright (c) 2007-2012 Hewlett-Packard Development Company, L.P.
+Copyright (c) 2013 LG Electronics
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this content except in compliance with the License.

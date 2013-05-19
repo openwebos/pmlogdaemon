@@ -1,6 +1,7 @@
 # @@@LICENSE
 #
 #      Copyright (c) 2011-2012 Hewlett-Packard Development Company, L.P.
+#      Copyright (c) 2013 LG Electronics
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -25,8 +26,8 @@ cmake_minimum_required(VERSION 2.8.7)
 project(PmLogDaemon C) 
 
 include(webOS/webOS)
-webos_modules_init(1 0 0 QUALIFIER RC2)
-webos_component(2 0 0)
+webos_modules_init(1 0 0 QUALIFIER RC4)
+webos_component(3 0 0)
 
 include(FindPkgConfig)
 
@@ -40,10 +41,20 @@ pkg_check_modules(PMLOGLIB REQUIRED PmLogLib)
 include_directories(${PMLOGLIB_INCLUDE_DIRS})
 webos_add_compiler_flags(ALL ${PMLOGLIB_CFLAGS_OTHER})
 
+# Check that we have PmLogLib-private
+pkg_check_modules(PMLOGLIB_PRV REQUIRED PmLogLib-private)
+include_directories(${PMLOGLIB_PRV_INCLUDE_DIRS})
+webos_add_compiler_flags(ALL ${PMLOGLIB_PRV_CFLAGS_OTHER})
+
 # Check that we have librdx
 pkg_check_modules(LIBRDX REQUIRED rdx)
 include_directories(${LIBRDX_INCLUDE_DIRS})
 webos_add_compiler_flags(ALL ${LIBRDX_CFLAGS_OTHER})
+
+# Check that we have libpbnjson
+pkg_check_modules(PBNJSON_C REQUIRED pbnjson_c)
+include_directories(${PBNJSON_C_INCLUDE_DIRS})
+webos_add_compiler_flags(ALL ${PBNJSON_C_CFLAGS_OTHER})
 
 # Get the zlib library
 include(FindZLIB)
@@ -63,10 +74,11 @@ add_executable(PmLogDaemon ${SOURCE_FILES})
 target_link_libraries(PmLogDaemon
                      ${GLIB2_LDFLAGS}
                      ${PMLOGLIB_LDFLAGS}
+                     ${PMLOGLIB_PRV_LDFLAGS}
                      ${LIBRDX_LDFLAGS}
+                     ${PBNJSON_C_LDFLAGS}
                      ${ZLIB_LIBRARIES}
-		     -lrt
-		)
+                     -lrt)
 
 webos_build_daemon()
 install(PROGRAMS scripts/public/show_disk_usage.sh DESTINATION @WEBOS_INSTALL_DATADIR@/PmLogDaemon)

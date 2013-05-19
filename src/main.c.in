@@ -1,6 +1,7 @@
 /* @@@LICENSE
 *
 *      Copyright (c) 2007-2012 Hewlett-Packard Development Company, L.P.
+*      Copyright (c) 2013 LG Electronics
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -121,18 +122,16 @@ static int			g_port;
 /* path to the unix domain socket = _PATH_LOG = /dev/log */
 static char			g_pathLog[ PATH_MAX ];
 
-
 /***********************************************************************
  * globals
  ***********************************************************************/
 
 /* localHostName is read dynamically */
-static char			g_localHostName[ MAXHOSTNAMELEN + 1 ];
+static char         g_localHostName[ MAXHOSTNAMELEN + 1 ];
 
-static PmLogFile_t	g_logFiles[ PMLOG_MAX_NUM_OUTPUTS ];
+static PmLogFile_t  g_logFiles[ PMLOG_MAX_NUM_OUTPUTS ];
 
-static bool		g_captureJSExceptions;
-
+static bool         g_captureJSExceptions;
 
 /**********************************************************************
  *	Function declarations
@@ -405,7 +404,7 @@ static int DoRotateLogFile(PmLogFile_t* logFileP)
 	if (logFileP->rotations <= 0)
 	{
 		/* we require rotations >= 1 */
-		ErrPrint("RotateLogFile: invalid number of rotations\n");
+		ErrPrint("RotateLogFile: invalid number of rotations: %d\n", logFileP->rotations);
 		return 0;
 	}
 
@@ -462,7 +461,6 @@ ScanRotatedFile(const char* filename) {
 	char* backtrace = NULL;
 	char* temp = NULL;
 	int comp_len = 0;
-	int retval = 0;
 
 	/* check if this is /var/log/messages.0 */
 	if (strcmp(filename, ROTATED_LOG_FILE_PATH) != 0) {
@@ -491,7 +489,7 @@ ScanRotatedFile(const char* filename) {
 
 			temp += 15;	/* get to the right place for the component name */
 			comp_len = (int)(strchr(temp, ':') - temp);
-	                strncpy(component, temp, comp_len);
+			strncpy(component, temp, comp_len);
 			component[comp_len] = '\0';
 
 			RdxReportMetadata md = create_rdx_report_metadata();
@@ -529,7 +527,7 @@ static int RotateLogFile(PmLogFile_t* logFileP, int fd, int numToWrite)
 	if (logFileP->rotations <= 0)
 	{
 		/* we require rotations >= 1 */
-		DbgPrint("RotateLogFile: invalid number of rotations\n");
+		DbgPrint("RotateLogFile: invalid number of rotations: %d\n", logFileP->rotations);
 		return 0;
 	}
 
@@ -630,7 +628,7 @@ Retry:
                 ErrPrint("%s: write(%s) error: %d %s\n", __func__, logFileP->path, err, strerror(err));
                 writeErr = err;
             } else {
-                ErrPrint("%s: write did not complete\n", __func__, logFileP->path);
+                ErrPrint("%s: write did not complete : %s\n", __func__, logFileP->path);
             }
         }
     }
@@ -820,7 +818,7 @@ static void OutputMessage(
 
             /* out of space.. clear it and report it */
             if (err_code == ENOSPC) {
-                ErrPrint("%s: Out of space! making room.\n", __func__, err_code);
+                ErrPrint("%s: Out of space! making room: %d\n", __func__, err_code);
                 gchar *file_name = NULL;
                 GError *gerr = NULL;
                 if (!g_spawn_command_line_sync("@WEBOS_INSTALL_DATADIR@/PmLogDaemon/show_disk_usage.sh @WEBOS_INSTALL_LOGDIR@", &file_name, NULL, NULL, &gerr)) {
@@ -1429,12 +1427,12 @@ static void LogMessage(int pri, const char* msg)
 	if ((contextName[ 0 ] != 0))
 		contextConfP = g_tree_lookup(g_contextConfs, contextName);
 
-	/* default to global context */
+	/* default to default context */
 	if (contextConfP == NULL)
 	{
-		contextConfP = g_tree_lookup(g_contextConfs, PMLOG_CONTEXT_GLOBAL);
+		contextConfP = g_tree_lookup(g_contextConfs, kPmLogDefaultContextName);
 		if (contextConfP == NULL) {
-			ErrPrint("%s, global context not found!\n", __FUNCTION__);
+			ErrPrint("%s, default context not found!\n", __FUNCTION__);
 			return;
 		}
 	}
@@ -1661,7 +1659,6 @@ static void SysLogMessage(const char* fmt, ...)
 	LogMessage(LOG_SYSLOG | LOG_INFO, msg);
 }
 
-
 static GMainLoop * mainLoop = NULL;
 
 /**
@@ -1791,12 +1788,11 @@ LogFileKillRotations(PmLogFile_t* logFileP, int start)
  */
 static void LogFileInit(PmLogFile_t* logFileP, const PmLogFile_t* confP)
 {
-
 	/* copy the fields to this struct for convenience */
-	logFileP->outputName		= confP->outputName;
-	logFileP->path			= confP->path;
-	logFileP->maxSize		= confP->maxSize;
-	logFileP->rotations		= confP->rotations;
+	logFileP->outputName    = confP->outputName;
+	logFileP->path          = confP->path;
+	logFileP->maxSize       = confP->maxSize;
+	logFileP->rotations     = confP->rotations;
 
     /* make sure there are not stale rotation files around */
     LogFileKillRotations(logFileP, logFileP->rotations + 1);
@@ -1851,14 +1847,13 @@ error:
  */
 static int RunSysLogD(void)
 {
-	struct sockaddr_un	sunx;
-	int					sock_fd;
-	int					err;
-	int					result;
-	int					i;
-	GIOChannel* gioch;
-	PmLogFile_t*		logFileP;
-
+	PmLogFile_t*        logFileP;
+	struct sockaddr_un  sunx;
+	int                 sock_fd;
+	int                 err;
+	int                 result;
+	int                 i;
+	GIOChannel*         gioch;
 
 	(void) signal(SIGINT, QuitSysLogD);
 	(void) signal(SIGTERM, QuitSysLogD);
@@ -2026,13 +2021,10 @@ static void InitConfig(void)
 	memset(&g_outputConfs, 0, sizeof(g_outputConfs));
 	g_contextConfs = g_tree_new_full( char_array_comp_func, NULL, g_free, free );
 
-	const char* kConfigFile = "@WEBOS_INSTALL_SYSCONFDIR@/PmLog/PmLog.conf";
-	if (!ReadConfFile(kConfigFile))
-	{
-		SetDefaultConf();
-	}
+	/* TODO : Validation for result of PmLogReadConfigs() */
+	PmLogPrvReadConfigs(ParseJsonOutputs);
+	PmLogPrvReadConfigs(ParseJsonContexts);
 }
-
 
 /**
  * @brief main
@@ -2044,7 +2036,7 @@ static void InitConfig(void)
  */
 int main(int argc, char* argv[])
 {
-	int		result;
+	int           result;
 
 	InitSettings();
 
@@ -2055,7 +2047,6 @@ int main(int argc, char* argv[])
 	DbgPrint("PmLogDaemon running...\n");
 
 	InitConfig();
-
 
 	/* make sure we aren't already running */
 	if (!LockProcess("PmLogDaemon"))

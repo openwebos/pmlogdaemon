@@ -1,6 +1,7 @@
 /* @@@LICENSE
 *
 *      Copyright (c) 2007-2012 Hewlett-Packard Development Company, L.P.
+*      Copyright (c) 2013 LG Electronics
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -33,9 +34,13 @@
 #include <stdio.h>
 #include <glib.h>
 
+#include "pbnjson.h"
 #include "PmLogLib.h"
+#include "PmLogLibPrv.h"
 #include "ring.h"
 #include "print.h"
+
+#define CONFIG_DIR "@WEBOS_INSTALL_SYSCONFDIR@/pmlog.d"
 
 /*
  * 'safe' string manipulation functions. Each function guarantees
@@ -152,9 +157,6 @@ void UnlockProcess(void);
 /* required first output definition */
 #define PMLOG_OUTPUT_STDLOG				"stdlog"
 
-/* required first context definition */
-#define PMLOG_CONTEXT_GLOBAL			"<global>"
-
 #define CONF_INT_UNINIT_VALUE	-1
 
 /* arbitrary maximum name length */
@@ -162,7 +164,6 @@ void UnlockProcess(void);
 
 /* arbitrary value */
 #define PMLOG_CONTEXT_MAX_NUM_RULES		16
-
 
 typedef struct
 {
@@ -213,12 +214,11 @@ PmLogContextConf_t;
 
 /* global configuration settings */
 
-extern int					g_numOutputs;
-extern PmLogFile_t	g_outputConfs[ PMLOG_MAX_NUM_OUTPUTS ];
+extern int          g_numOutputs;
+extern PmLogFile_t  g_outputConfs[ PMLOG_MAX_NUM_OUTPUTS ];
 
-extern int					g_numContexts;
-extern GTree *	g_contextConfs;
-
+extern int          g_numContexts;
+extern GTree        *g_contextConfs;
 
 /**
  * @brief ParseRuleFacility
@@ -228,7 +228,6 @@ extern GTree *	g_contextConfs;
  */
 bool ParseRuleFacility(const char* s, int* facilityP);
 
-
 /**
  * ParseRuleLevel
  *
@@ -237,8 +236,12 @@ bool ParseRuleFacility(const char* s, int* facilityP);
  */
 bool ParseRuleLevel(const char* s, int* levelP);
 
-bool ReadConfFile(const char* config_path);
+bool ParseJsonOutputs(const char* file_name);
+
+bool ParseJsonContexts(const char* file_name);
 
 void SetDefaultConf(void);
+
+gint char_array_comp_func(gconstpointer a, gconstpointer b, gpointer user_data);
 
 #endif /* PMLOGDAEMON_H */
