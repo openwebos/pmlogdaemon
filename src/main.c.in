@@ -126,9 +126,6 @@ static char			g_pathLog[ PATH_MAX ];
  * globals
  ***********************************************************************/
 
-/* localHostName is read dynamically */
-static char         g_localHostName[ MAXHOSTNAMELEN + 1 ];
-
 static PmLogFile_t  g_logFiles[ PMLOG_MAX_NUM_OUTPUTS ];
 
 static bool         g_captureJSExceptions;
@@ -137,23 +134,6 @@ static bool         g_captureJSExceptions;
  *	Function declarations
  **********************************************************************/
 static int ScanRotatedFile(const char* filename);
-
-
-/**
- * @brief InitHostName
- */
-static void InitHostName(void)
-{
-	char*	p;
-
-	gethostname(g_localHostName, sizeof(g_localHostName));
-	/* trim off the domain name if present */
-	p = strchr(g_localHostName, '.');
-	if (p != NULL)
-	{
-		*p = 0;
-	}
-}
 
 
 /**
@@ -860,7 +840,7 @@ static void OutputMessage(
  * @brief ParseMsgProgram
  *
  * If the message came from a syslog call, it should be of the form:
- * 	<progname> [ '[' <pid> ']' ] ':' ' '
+ * 	<progname>: [ '[' <pid> ']' ] ' '
  *
  * If this is matched, return the address of the character past the ' ',
  * else return NULL.
@@ -880,18 +860,19 @@ static const char* ParseMsgProgram(const char* msg,
 	char* programName, size_t programNameBuffSize)
 {
 	const char* s;
-	size_t		nameLen;
-	size_t		fullLen;
+	size_t      nameLen;
+	size_t      fullLen;
+	int         index_colon = -1;
 
-	programFull[ 0 ] = 0;
-	programName[ 0 ] = 0;
+	programFull[ 0 ] = '\0';
+	programName[ 0 ] = '\0';
 	*nameLenP = 0;
 
 	s = msg;
 
-	/* span characters not including '[', ':', and whitespace */
+	/* span characters not including ':' and whitespace */
 	nameLen = 0;
-	while ((*s != 0) && (*s != '[') && (*s != ':') && (!isspace(*s)))
+	while ((*s != 0) && (*s != ':') && (!isspace(*s)))
 	{
 		nameLen++;
 		s++;
@@ -902,22 +883,11 @@ static const char* ParseMsgProgram(const char* msg,
 		return NULL;
 	}
 
-	if (*s == '[')
-	{
-		s++;
-		while (isdigit(*s))
-		{
-			s++;
-		}
-		if (*s == ']')
-		{
-			s++;
-		}
-	}
-
 	if (*s != ':')
 	{
 		return NULL;
+	} else {
+		index_colon = s - msg; // Remember index of colon to remove the colon
 	}
 	s++;
 
@@ -927,7 +897,11 @@ static const char* ParseMsgProgram(const char* msg,
 	}
 	s++;
 
-	fullLen = s - msg;
+	if (' ' == *s) {
+		s++;
+	}
+
+	fullLen = s - msg - 1; // "-1 means remove the space, colon will replace with the space"
 
 	if (fullLen >= programFullBuffSize)
 	{
@@ -936,7 +910,11 @@ static const char* ParseMsgProgram(const char* msg,
 	}
 
 	memcpy(programFull, msg, fullLen);
-	programFull[ fullLen ] = 0;
+	if (index_colon > -1) {
+		programFull[ index_colon ] = ' ';  // Remove the colon
+		programFull[ index_colon + 1 ] = '\0'; // Replace with next of the colon with NUL
+	}
+	programFull[ fullLen ] = '\0';
 
 	*nameLenP = nameLen;
 
@@ -957,7 +935,7 @@ static const char* ParseMsgProgram(const char* msg,
  * @brief ParseMsgPidTid
  *
  * If PmLogLib is set to log process/thread IDs, it should be of the form:
- * 	'[' <pid> [ ':' <tid> ] ']' ':' ' '
+ * 	'[' <pid> [ ':' <tid> ] ']' ' '
  *
  * @param msg the message to parse
  *
@@ -1003,12 +981,6 @@ static const char* ParseMsgPidTid(const char* msg)
 	}
 
 	if (*s != ']')
-	{
-		return NULL;
-	}
-	s++;
-
-	if (*s != ':')
 	{
 		return NULL;
 	}
@@ -1284,9 +1256,8 @@ gboolean FlushNotMe(gpointer key, gpointer value, gpointer data) {
 			char			priStr[ 20 ];
 			/* look up facility + priority name from pri */
 			FormatPri(LOG_SYSLOG | LOG_INFO, priStr, sizeof(priStr));
-			gchar * outMsg = g_strdup_printf("%s %s %s pmsyslogd: {%s}: ------ Flushing ring buffer for context %s ------\n",
+			gchar * outMsg = g_strdup_printf("%s %s pmsyslogd: {%s}: ------ Flushing ring buffer for context %s ------\n",
                     timeStamp,
-                    g_localHostName,
                     priStr,
                     keyContextP->contextName,
                     me->contextName);
@@ -1298,9 +1269,8 @@ gboolean FlushNotMe(gpointer key, gpointer value, gpointer data) {
 			RBFlush(keyContextP->rb, FlushMessage, keyContextP);
 
 			timeStamp = MakeMessageTimestamp();
-			outMsg = g_strdup_printf("%s %s %s pmsyslogd: {%s}: ------ Done flushing ------\n",
+			outMsg = g_strdup_printf("%s %s pmsyslogd: {%s}: ------ Done flushing ------\n",
                     timeStamp,
-                    g_localHostName,
                     priStr,
                     keyContextP->contextName);
 			OutputMessage(keyContextP, LOG_SYSLOG | LOG_INFO, "pmsyslogd", outMsg);
@@ -1365,8 +1335,7 @@ static void LogMessage(int pri, const char* msg)
 	/* look up facility + priority name from pri */
 	FormatPri(pri, priStr, sizeof(priStr));
 
-	g_string_printf(outMsg, "%s %s %s ", timeStamp,
-		g_localHostName, priStr);
+	g_string_printf(outMsg, "%s %s ", timeStamp, priStr);
 
 	g_free(timeStamp);
 
@@ -1448,9 +1417,8 @@ static void LogMessage(int pri, const char* msg)
 			timeStamp = MakeMessageTimestamp();
 			char priStr2[20];
 			FormatPri(LOG_SYSLOG | LOG_INFO, priStr2, sizeof(priStr2));
-			gchar * flushMsg = g_strdup_printf("%s %s %s pmsyslogd: {%s}: ------ Flushing ring buffer for %s message ------\n", 
+			gchar * flushMsg = g_strdup_printf("%s %s pmsyslogd: {%s}: ------ Flushing ring buffer for %s message ------\n",
                     timeStamp,
-                    g_localHostName,
                     priStr2,
                     contextConfP->contextName,
                     priStr);
@@ -1463,9 +1431,8 @@ static void LogMessage(int pri, const char* msg)
             g_free(flushMsg);
 
 			timeStamp = MakeMessageTimestamp();
-			flushMsg = g_strdup_printf("%s %s %s pmsyslogd: {%s}: ------ Done flushing ------\n",
+			flushMsg = g_strdup_printf("%s %s pmsyslogd: {%s}: ------ Done flushing ------\n",
                     timeStamp,
-                    g_localHostName,
                     priStr2,
                     contextConfP->contextName);
 			OutputMessage(contextConfP, pri, "pmsyslogd", flushMsg);
@@ -1705,7 +1672,7 @@ static gboolean LogConfig(gpointer key, gpointer value, gpointer data) {
 
 		outputP = &g_outputConfs[ ruleP->outputIndex ];
 
-		SysLogMessage("PmLogDaemon:   Rule %s.%s%s.%s => %s%s",
+		SysLogMessage("PmLogDaemon: Rule %s.%s%s.%s => %s%s",
 				GetRuleFacilityStr(ruleP->facility),
 				ruleP->levelInvert ? "!" : "",
 				GetRuleLevelStr(ruleP->level),
@@ -1861,8 +1828,6 @@ static int RunSysLogD(void)
 
 	(void) signal(SIGHUP, SIG_IGN);
 	(void) signal(SIGCHLD, SIG_IGN);
-
-	InitHostName();
 
 	for (i = 0; i < g_numOutputs; i++)
 	{
