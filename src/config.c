@@ -254,9 +254,12 @@ static bool MakeOutputConf(PmLogParseOutput_t* parseOutputP)
 		memset(outputConfP, 0, sizeof(PmLogFile_t));
 		outputConfP->outputName = g_strdup(parseOutputP->name);
 		outputConfP->path = g_strdup(parseOutputP->File);
+		outputConfP->maxSize = parseOutputP->MaxSize;
+		outputConfP->rotations = parseOutputP->Rotations;
 		g_numOutputs++;
 	} else {
 		DbgPrint("output %d for %s existing already\n", g_numOutputs+1, parseOutputP->name);
+		return true;
 	}
 
 	/*

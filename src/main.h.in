@@ -42,6 +42,12 @@
 
 #define CONFIG_DIR "@WEBOS_INSTALL_SYSCONFDIR@/pmlog.d"
 
+#define PMLOGD_NAME     "PmLogDaemon"
+#define PMLOGD_CONTEXT  "pmlogdaemon"
+
+#define LEVEL_INFO      (LOG_SYSLOG | LOG_INFO)
+#define LEVEL_WARNING   (LOG_SYSLOG | LOG_WARNING)
+
 /*
  * 'safe' string manipulation functions. Each function guarantees
  * the output buffer is not overflowed, and that it is null terminated

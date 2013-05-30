@@ -135,7 +135,6 @@ static bool         g_captureJSExceptions;
  **********************************************************************/
 static int ScanRotatedFile(const char* filename);
 
-
 /**
  * @brief ParseRuleFacility
  *
@@ -1307,7 +1306,6 @@ static void LogMessage(int pri, const char* msg)
 	const char*		msgNext;
 	size_t			msgProgramNameLen;
 
-
 	timeStamp = MakeMessageTimestamp();
 
 	/*
@@ -1599,20 +1597,24 @@ static void ProcessMessage(const char* buff, int buffLen)
 	LogMessage(pri, line);
 }
 
+/* Insert process name, context name, and message ID */
+#define SysLogMessage(level, msgID, ...) \
+		_SysLogMessage(level, PMLOGD_NAME " " PMLOGD_CONTEXT " " msgID " " __VA_ARGS__);
 
 /**
- * @brief SysLogMessage
+ * @brief _SysLogMessage
  * Wrapper around the LogMessage command to provide
  * formated arguments.
  * Note this must be called with printf type arguments
  *
+ * @param level the log level
  * @param fmt the format string
  * @param ... optional additional arguments
  */
-static void SysLogMessage(const char* fmt, ...)
-	 __attribute__((format(printf, 1, 2)));
+static void _SysLogMessage(const int level, const char* fmt, ...)
+	 __attribute__((format(printf, 2, 3)));
 
-static void SysLogMessage(const char* fmt, ...)
+static void _SysLogMessage(const int level, const char* fmt, ...)
 {
 	va_list 	args;
 	char		msg[ 512 ];
@@ -1623,7 +1625,7 @@ static void SysLogMessage(const char* fmt, ...)
 
 	va_end(args);
 
-	LogMessage(LOG_SYSLOG | LOG_INFO, msg);
+	LogMessage(level, msg);
 }
 
 static GMainLoop * mainLoop = NULL;
@@ -1638,7 +1640,7 @@ static GMainLoop * mainLoop = NULL;
 static void QuitSysLogD(int sig)
 {
 	/* exit based on external signal */
-	SysLogMessage("PmLogDaemon: exiting");
+	SysLogMessage(LEVEL_INFO, "PROC_EXIT", "");
 	g_main_loop_quit(mainLoop);
 }
 
@@ -1663,23 +1665,25 @@ static gboolean LogConfig(gpointer key, gpointer value, gpointer data) {
 	gchar * name = (gchar*)key;
 	int j;
 
-	const PmLogFile_t*	outputP;
-	const PmLogRule_t*			ruleP;
-	SysLogMessage("PmLogDaemon: Context name=%s", name);
+	const PmLogFile_t*  outputP;
+	const PmLogRule_t*  ruleP;
+
+	SysLogMessage(LEVEL_INFO, "CFG_CTX", "\{\"name\":\"%s\"\}", name);
 	for (j = 0; j < contextP->numRules; j++)
 	{
 		ruleP = &contextP->rules[ j ];
 
 		outputP = &g_outputConfs[ ruleP->outputIndex ];
 
-		SysLogMessage("PmLogDaemon: Rule %s.%s%s.%s => %s%s",
-				GetRuleFacilityStr(ruleP->facility),
-				ruleP->levelInvert ? "!" : "",
-				GetRuleLevelStr(ruleP->level),
-				(ruleP->program == NULL) ? "*" : ruleP->program,
-				ruleP->omitOutput ? "-" : "",
-				outputP->outputName
-			     );
+		SysLogMessage(LEVEL_INFO, "CFG_RULE",
+                      "\{\"filter\":\"%s.%s%s.%s\"\},\{\"output\":\"%s%s\"\}",
+                      GetRuleFacilityStr(ruleP->facility),
+                      ruleP->levelInvert ? "!" : "",
+                      GetRuleLevelStr(ruleP->level),
+                      (ruleP->program == NULL) ? "*" : ruleP->program,
+                      ruleP->omitOutput ? "-" : "",
+                      outputP->outputName
+                      );
 	}
 	/* return true to stop the traversal */
 	return FALSE;
@@ -1704,11 +1708,13 @@ static void LogConfigInfo(void)
 	{
 		outputP = &g_outputConfs[ i ];
 
-		SysLogMessage("PmLogDaemon: Output name=%s path=%s size=%d rot=%d", 
-			outputP->outputName,
-            outputP->path,
-            outputP->maxSize,
-			outputP->rotations);
+		SysLogMessage(LEVEL_INFO, "CFG_OUTPUT",
+		              "\{\"name\":\"%s\"\},\{\"path\":\"%s\"\},\{\"size\":%d\},\{\"rotations\":%d\}",
+		              outputP->outputName,
+		              outputP->path,
+		              outputP->maxSize,
+		              outputP->rotations
+		              );
 	}
 
 	g_tree_foreach(g_contextConfs, LogConfig, NULL);
@@ -1880,7 +1886,7 @@ static int RunSysLogD(void)
 	g_io_channel_unref(gioch);
 
 	/* Run the main loop */
-	SysLogMessage("PmLogDaemon: started");
+	SysLogMessage(LEVEL_INFO, "PROC_START", "");
 
 	if (g_showStartInfo)
 	{
@@ -1890,7 +1896,7 @@ static int RunSysLogD(void)
 	g_captureJSExceptions = false;
 	/* Before initializing, check to see that we are pointed to the QA server so we don't overload production with JS crashes */
 	if (g_file_test ("/usr/share/omadm/internal", G_FILE_TEST_EXISTS)) {
-		SysLogMessage("Pointed to QA, enabling JS RDX scrape");
+		SysLogMessage(LEVEL_INFO, "", "Pointed to QA, enabling JS RDX scrape");
 		g_captureJSExceptions = true;
 	}
 
