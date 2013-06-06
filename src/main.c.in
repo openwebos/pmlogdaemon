@@ -1000,7 +1000,7 @@ static const char* ParseMsgPidTid(const char* msg)
  *
  * If the message came from a PmLogLib call that specified a context,
  * it should be of the form:
- * 	'{' <contextName '}' ':' ' '
+ * 	contextName msgid
  *
  * If a match was made, the context name is returned in contextName,
  * otherwise it should be left empty.
@@ -1021,17 +1021,10 @@ static const char* ParseMsgContext(const char* msg, char* contextName,
 
 	s = msg;
 
-	if (*s != '{')
-	{
-		return NULL;
-	}
-	s++;
-
 	/* span characters that are allowed for context names
 	 * see PmLogLib for definition */
 	i = 0;
-	while ((*s != 0) && (*s != '}') && (!isspace(*s)) &&
-		(isalnum(*s) || (*s == '.') || (*s == '_')))
+	while (!isspace(*s))
 	{
 		i++;
 		s++;
@@ -1042,31 +1035,13 @@ static const char* ParseMsgContext(const char* msg, char* contextName,
 		return NULL;
 	}
 
-	if (*s != '}')
-	{
-		return NULL;
-	}
-	s++;
-
-	if (*s != ':')
-	{
-		return NULL;
-	}
-	s++;
-
-	if (*s != ' ')
-	{
-		return NULL;
-	}
-	s++;
-
 	if (i >= contextNameBuffSize)
 	{
 		/* context buff overflow! */
 		i = contextNameBuffSize - 1;
 	}
 
-	memcpy(contextName, msg + 1, i);
+	memcpy(contextName, msg, i);
 	contextName[ i ] = 0;
 
 	return s;
@@ -1345,14 +1320,14 @@ static void LogMessage(int pri, const char* msg)
 	 * msgLeft is what will actually be written to the file (possibly
 	 * after stripping some stuff off from msg prefix) 
 	 */
-	msgLeft = msg; // eg "progName: {contextName}: rest of msg..."
+	msgLeft = msg; // eg "progName contextName rest_of_msg..."
 
 	/* parse off program identifier prefix */
 	msgNext = ParseMsgProgram(msgLeft, msgProgram, sizeof(msgProgram),
 		&msgProgramNameLen, programName, sizeof(programName));
 	if (msgNext != NULL)
 	{
-		msgLeft = msgNext; /* eg "{contextName}: rest of msg..." */
+		msgLeft = msgNext; /* eg "contextName rest_of_msg..." */
 	}
 
 	/* msgCurr is where we're at in parsing */
@@ -1383,10 +1358,9 @@ static void LogMessage(int pri, const char* msg)
 		return;
 	}
 
-	outMsg = g_string_append(outMsg, msgProgram); /* e.g "PmWanDaemon: \0" */
-	outMsg = g_string_append(outMsg, msgLeft); /* "{wan.mgr}: my message..." */
-	outMsg = g_string_append(outMsg, "\n"); /* e.g "2008-12-08T12:17:12.824279Z [1824] castle user.info uploadd: {uploadd}: msg... \n" */
-
+	outMsg = g_string_append(outMsg, msgProgram); /* e.g "uploadd \0" */
+	outMsg = g_string_append(outMsg, msgLeft); /* "context msgid kvpair message" */
+	outMsg = g_string_append(outMsg, "\n"); /* e.g "2008-12-08T12:17:12.824279Z [1824] user.info uploadd uploadd msgid kvpairs msg... \n" */
 
 	PmLogContextConf_t*	contextConfP = NULL;
 
