@@ -1259,6 +1259,23 @@ gboolean FlushNotMe(gpointer key, gpointer value, gpointer data) {
 	return FALSE;
 }
 
+/**
+ * @brief ParseMsgTag
+ * Parse identifier which indicates whether current log
+ * is from pmloglib.
+ *
+ * @param msg message to parse
+ */
+static
+const char* ParseMsgTag(const char* msg)
+{
+	int tagLength = strlen(PMLOG_IDENTIFIER) + 1; // tag + space
+
+	if ((strlen(msg) < tagLength)  || (strncmp(msg, PMLOG_IDENTIFIER " ", tagLength) != 0))
+		return NULL; // Does not start with tag
+
+	return msg + tagLength;
+}
 
 /**
  * @brief LogMessage
@@ -1346,11 +1363,21 @@ static void LogMessage(int pri, const char* msg)
 		msgCurr = msgNext;
 	}
 
-	/* parse off PmLogLib context identifier prefix (if present) */
-	msgNext = ParseMsgContext(msgCurr, contextName, sizeof(contextName));
-	if (msgNext != NULL)
-	{
+	/* Recognization for PMLOG_IDENTIFIER*/
+	msgNext = ParseMsgTag(msgCurr);
+	if (!msgNext) {
+		// not from pmloglib
+		strcpy(contextName, LEGACY_LOG);
+	} else {
+		// from pmloglib
 		msgCurr = msgNext;
+		msgLeft = msgNext;
+		/* parse off PmLogLib context identifier prefix (if present) */
+		msgNext = ParseMsgContext(msgCurr, contextName, sizeof(contextName));
+		if (msgNext != NULL)
+		{
+			msgCurr = msgNext;
+		}
 	}
 
 	if (HandleLogCommand(msgCurr))
@@ -1573,7 +1600,7 @@ static void ProcessMessage(const char* buff, int buffLen)
 
 /* Insert process name, context name, and message ID */
 #define SysLogMessage(level, msgID, ...) \
-		_SysLogMessage(level, PMLOGD_NAME " " PMLOGD_CONTEXT " " msgID " " __VA_ARGS__);
+		_SysLogMessage(level, PMLOGD_NAME ":" " " PMLOG_IDENTIFIER " " PMLOGD_CONTEXT " " msgID " " __VA_ARGS__);
 
 /**
  * @brief _SysLogMessage

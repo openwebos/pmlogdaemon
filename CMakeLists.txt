@@ -23,7 +23,7 @@
 
 cmake_minimum_required(VERSION 2.8.7)
 
-project(PmLogDaemon C) 
+project(PmLogDaemon C)
 
 include(webOS/webOS)
 webos_modules_init(1 0 0 QUALIFIER RC4)
