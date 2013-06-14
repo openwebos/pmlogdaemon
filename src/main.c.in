@@ -1185,7 +1185,7 @@ static gchar* MakeMessageTimestamp() {
 	{
 		/*
 		 * Generate the timestamp. ctime => "Wed Jun 30 21:49:08 1993\n"
-		 * Note: glibc uses strftime "%h %e %T" using C locale 
+		 * Note: glibc uses strftime "%h %e %T" using C locale
 		 */
 		timeStamp = g_string_new_len(ctime(&now) + 4, 15);
 	}
@@ -1285,7 +1285,7 @@ static void LogMessage(int pri, const char* msg)
 
 	/*
 	 * Remove timestamp prefix if present. Local messages should have this, remote may not.
-	 * Check for RFC 3164 timestamp  0123456789ABCDEF0 "Mmm dd hh:mm:ss " and remove it 
+	 * Check for RFC 3164 timestamp  0123456789ABCDEF0 "Mmm dd hh:mm:ss " and remove it
 	 */
 	msgLen = strlen(msg);
 	if ((msgLen >= 16) &&
@@ -1318,7 +1318,7 @@ static void LogMessage(int pri, const char* msg)
 
 	/*
 	 * msgLeft is what will actually be written to the file (possibly
-	 * after stripping some stuff off from msg prefix) 
+	 * after stripping some stuff off from msg prefix)
 	 */
 	msgLeft = msg; // eg "progName contextName rest_of_msg..."
 
@@ -1501,7 +1501,7 @@ static void ProcessMessage(const char* buff, int buffLen)
 	 * The caller has already verified that, so we can ignore
 	 * the specified length here and just look for the terminator.
 	 * Note: If there were embedded NUL characters in
-	 * the data that will cause the message to be truncated. 
+	 * the data that will cause the message to be truncated.
 	 */
 	(void) &buffLen;
 
@@ -1868,11 +1868,15 @@ static int RunSysLogD(void)
 	}
 
 	g_captureJSExceptions = false;
+#if 0
+    // TODO: We may need the equivalnet of this in the production code
+
 	/* Before initializing, check to see that we are pointed to the QA server so we don't overload production with JS crashes */
 	if (g_file_test ("/usr/share/omadm/internal", G_FILE_TEST_EXISTS)) {
 		SysLogMessage(LEVEL_INFO, "", "Pointed to QA, enabling JS RDX scrape");
 		g_captureJSExceptions = true;
 	}
+#endif
 
 	g_main_loop_run(mainLoop);
 	g_main_loop_unref(mainLoop);
