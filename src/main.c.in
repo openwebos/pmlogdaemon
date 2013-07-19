@@ -885,7 +885,8 @@ static const char* ParseMsgProgram(const char* msg,
 	{
 		return NULL;
 	} else {
-		index_colon = s - msg; // Remember index of colon to remove the colon
+		// Remember index of colon to remove the colon
+		index_colon = s - msg;
 	}
 	s++;
 
@@ -895,11 +896,7 @@ static const char* ParseMsgProgram(const char* msg,
 	}
 	s++;
 
-	if (' ' == *s) {
-		s++;
-	}
-
-	fullLen = s - msg - 1; // "-1 means remove the space, colon will replace with the space"
+	fullLen = s - msg;
 
 	if (fullLen >= programFullBuffSize)
 	{
@@ -909,7 +906,7 @@ static const char* ParseMsgProgram(const char* msg,
 
 	memcpy(programFull, msg, fullLen);
 	if (index_colon > -1) {
-		programFull[ index_colon ] = ' ';  // Remove the colon
+		programFull[ index_colon ] = ' ';  // Remove the colon and replace with space
 		programFull[ index_colon + 1 ] = '\0'; // Replace with next of the colon with NUL
 	}
 	programFull[ fullLen ] = '\0';
@@ -951,6 +948,15 @@ static const char* ParseMsgPidTid(const char* msg)
 		return NULL;
 	}
 	s++;
+
+	if (']' == *s ) // If "[Pid:Tid]" is empty, it will come as "[]".
+	{
+		if (*++s != ' ')
+		{
+			return NULL;
+		}
+		return ++s;
+	}
 
 	if (!isdigit(*s))
 	{
@@ -1354,8 +1360,8 @@ static void LogMessage(int pri, const char* msg)
 	if (msgNext != NULL)
 	{
 		/* integrate into msgProgram */
-		mysprintf(msgProgram + msgProgramNameLen,
-			sizeof(msgProgram) - msgProgramNameLen, "%.*s",
+		mysprintf(msgProgram + msgProgramNameLen + 1,
+			sizeof(msgProgram) - msgProgramNameLen + 1, "%.*s",
 			msgNext - msgCurr, msgCurr);
 
 		msgLeft = msgNext;
