@@ -22,7 +22,8 @@
 description	"@WEBOS_PROJECT_SUMMARY@"
 
 #start on stopped mountall
-start on stopped hostname
+#start on stopped hostname
+start on ls-hubd_private-ready
 
 #stop on runlevel [!2]
 

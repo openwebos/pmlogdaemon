@@ -55,6 +55,11 @@ pkg_check_modules(PBNJSON_C REQUIRED pbnjson_c)
 include_directories(${PBNJSON_C_INCLUDE_DIRS})
 webos_add_compiler_flags(ALL ${PBNJSON_C_CFLAGS_OTHER})
 
+# Check that we have luna-service2
+pkg_check_modules(LUNASERVICE2 REQUIRED luna-service2)
+include_directories(${LUNASERVICE2_INCLUDE_DIRS})
+webos_add_compiler_flags(ALL ${LUNASERVICE2_CFLAGS_OTHER})
+
 # Get the zlib library
 include(FindZLIB)
 if(NOT ZLIB_FOUND)
@@ -77,9 +82,11 @@ target_link_libraries(PmLogDaemon
                      ${LIBRDX_LDFLAGS}
                      ${PBNJSON_C_LDFLAGS}
                      ${ZLIB_LIBRARIES}
+                     ${LUNASERVICE2_LDFLAGS}
                      -lrt)
 
 webos_build_daemon()
+webos_build_system_bus_files()
 install(PROGRAMS scripts/public/show_disk_usage.sh DESTINATION @WEBOS_INSTALL_DATADIR@/PmLogDaemon)
 
 webos_config_build_doxygen(doc Doxyfile)

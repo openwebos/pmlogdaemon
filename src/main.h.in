@@ -43,9 +43,11 @@
 
 #define PMLOGD_NAME     "PmLogDaemon"
 #define PMLOGD_CONTEXT  "pmlogdaemon"
+#define PMLOGD_APP_ID   "com.webos.pmlogd"
 
-#define LEVEL_INFO      (LOG_SYSLOG | LOG_INFO)
 #define LEVEL_WARNING   (LOG_SYSLOG | LOG_WARNING)
+#define LEVEL_INFO      (LOG_SYSLOG | LOG_INFO)
+#define LEVEL_DEBUG     (LOG_SYSLOG | LOG_DEBUG)
 
 /*
  * 'safe' string manipulation functions. Each function guarantees

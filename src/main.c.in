@@ -69,6 +69,8 @@
 #include <sys/wait.h>
 #include <time.h>
 
+#include <lunaservice.h>
+
 /***********************************************************************
  * status codes
  ***********************************************************************/
@@ -133,6 +135,9 @@ static bool         g_captureJSExceptions;
  *	Function declarations
  **********************************************************************/
 static int ScanRotatedFile(const char* filename);
+
+static LSHandle *g_lsServiceHandle = NULL;
+static LSError g_lsError;
 
 /**
  * @brief ParseRuleFacility
@@ -1646,7 +1651,7 @@ static GMainLoop * mainLoop = NULL;
 static void QuitSysLogD(int sig)
 {
 	/* exit based on external signal */
-	SysLogMessage(LEVEL_INFO, "PROC_EXIT", "");
+	SysLogMessage(LEVEL_DEBUG, "PROC_EXIT", "");
 	g_main_loop_quit(mainLoop);
 }
 
@@ -1815,6 +1820,92 @@ error:
 	return TRUE;
 }
 
+/////////////////////////////////////////////////////////////////
+//                                                             //
+//            Start of API documentation comment block         //
+//                                                             //
+/////////////////////////////////////////////////////////////////
+/**
+@page com_webos_pmlogd com.webos.pmlogd
+@{
+@section com_webos_pmlogd_forcerotate forcerotate
+
+Force rotates to mainstream file. /var/log/messages
+
+@par Returns
+
+Name | Required | Type | Description
+-----|--------|------|----------
+returnValue | yes | Boolean | True on success, false otherwise
+errorText | no | String | Error text
+@}
+*/
+/////////////////////////////////////////////////////////////////
+//                                                             //
+//            End of API documentation comment block           //
+//                                                             //
+/////////////////////////////////////////////////////////////////
+static bool force_rotate_ls(LSHandle *lsHandle, LSMessage *lsMessage, void *wd) {
+
+	bool          ret_val;
+	PmLogFile_t*  logFileP;
+	jvalue_ref    reply = {0,};
+	jschema_ref   response_schema = jschema_parse (j_cstr_to_buffer("{}"), DOMOPT_NOOPT, NULL);
+
+	LSMessageRef(lsMessage);
+
+	reply = jobject_create();
+
+	logFileP = &g_logFiles[ 0 ];
+	if(ForceRotateLogFile(logFileP)) {
+		jobject_put(reply, J_CSTR_TO_JVAL("returnValue"), jboolean_create(true));
+	} else {
+		jobject_put(reply, J_CSTR_TO_JVAL("returnValue"), jboolean_create(false));
+		jobject_put(reply, J_CSTR_TO_JVAL("errorText"), jstring_create("Log rotation failed"));
+	}
+
+	ret_val = LSMessageReply(lsHandle, lsMessage, jvalue_tostring(reply, response_schema), &g_lsError);
+	if (!ret_val) {
+		SysLogMessage(LEVEL_WARNING, "LSREPLY_ERROR", "{\"errorText\":\"%s\"}", g_lsError.message);
+	}
+
+	LSMessageUnref(lsMessage);
+	j_release(&reply);
+	LSErrorFree(&g_lsError);
+
+	return (ret_val != 0);
+}
+
+static LSMethod lsMethod_public[] = {
+	{ "forcerotate", force_rotate_ls },
+	{},
+};
+
+static bool register_luna_service(GMainLoop *mainLoop) {
+
+	bool result;
+	LSErrorInit(&g_lsError);
+
+	result = LSRegister(PMLOGD_APP_ID, &g_lsServiceHandle, &g_lsError);
+	if (!result) {
+		SysLogMessage(LEVEL_WARNING, "LSREGISTER_ERROR", "{\"errorText\":\"LSRegister ERROR\"}");
+		return false;
+	}
+
+	result = LSRegisterCategory (g_lsServiceHandle, "/", lsMethod_public, NULL, NULL, &g_lsError);
+	if (!result) {
+		SysLogMessage(LEVEL_WARNING, "LSREGISTER_ERROR", "{\"errorText\":\"LSRegisterCategory ERROR\"}");
+		return false;
+	}
+
+	result = LSGmainAttach (g_lsServiceHandle, mainLoop, &g_lsError);
+	if (!result) {
+		SysLogMessage(LEVEL_WARNING, "LSREGISTER_ERROR", "{\"errorText\":\"LSGmainAttach ERROR\"}");
+		return false;
+	}
+
+	return true;
+}
 
 /**
  * @brief RunSysLogD
@@ -1833,6 +1924,7 @@ static int RunSysLogD(void)
 	int                 result;
 	int                 i;
 	GIOChannel*         gioch;
+	bool                lsResult;
 
 	(void) signal(SIGINT, QuitSysLogD);
 	(void) signal(SIGTERM, QuitSysLogD);
@@ -1892,7 +1984,7 @@ static int RunSysLogD(void)
 	g_io_channel_unref(gioch);
 
 	/* Run the main loop */
-	SysLogMessage(LEVEL_INFO, "PROC_START", "");
+	SysLogMessage(LEVEL_DEBUG, "PROC_START", "");
 
 	if (g_showStartInfo)
 	{
@@ -1909,6 +2001,9 @@ static int RunSysLogD(void)
 		g_captureJSExceptions = true;
 	}
 #endif
+
+	lsResult = register_luna_service(mainLoop);
+	SysLogMessage(LEVEL_DEBUG, "LSREGISTER_SERVICE", "{\"returnValue\":%s}", lsResult ? "true" : "false");
 
 	g_main_loop_run(mainLoop);
 	g_main_loop_unref(mainLoop);

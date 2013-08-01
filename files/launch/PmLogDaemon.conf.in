@@ -18,7 +18,8 @@
 
 description "@WEBOS_PROJECT_SUMMARY@"
 
-start on stopped mountall
+#start on stopped mountall
+start on ls-hubd_private-ready
 
 respawn
 
