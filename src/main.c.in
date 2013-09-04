@@ -140,6 +140,23 @@ static LSHandle *g_lsServiceHandle = NULL;
 static LSError g_lsError;
 
 /**
+ * @brief _SysLogMessage
+ * Wrapper around the LogMessage command to provide
+ * formated arguments.
+ * Note this must be called with printf type arguments
+ *
+ * @param level the log level
+ * @param fmt the format string
+ * @param ... optional additional arguments
+ */
+static void _SysLogMessage(const int level, const char* fmt, ...)
+	 __attribute__((format(printf, 2, 3)));
+
+/* Insert process name, context name, and message ID */
+#define SysLogMessage(level, msgID, ...) \
+		_SysLogMessage(level, PMLOGD_NAME ":" " " PMLOG_IDENTIFIER " [] " PMLOGD_CONTEXT " " msgID " " __VA_ARGS__);
+
+/**
  * @brief ParseRuleFacility
  *
  * "*" => -1, "user" => LOG_USER, etc.
@@ -540,6 +557,15 @@ static int RotateLogFile(PmLogFile_t* logFileP, int fd, int numToWrite)
 	return result;
 }
 
+bool handle_makereport_callback(LSHandle *sh, LSMessage *reply, void *ctx)
+{
+	raw_buffer result_buffer = j_cstr_to_buffer(LSMessageGetPayload(reply));
+
+	SysLogMessage(LEVEL_INFO, "MAKEREPORT_RESULT", "%s /var/log/messages has been rotated.", result_buffer.m_str);
+
+	return true;
+}
+
 /**
  * @brief WriteToLogFile
  *
@@ -597,6 +623,20 @@ Retry:
 	else
 	{
 		didRotate = RotateLogFile(logFileP, fd, n);
+		if (didRotate) {
+			LSError lserror;
+			LSErrorInit(&lserror);
+			if (!LSCall(g_lsServiceHandle,
+                        "luna://com.webos.rdxd/makereport",
+                        "{\"detail\":\"\",\"cause\":\"Log Rotation\",\"component\":\"PmLogDaemon\"}",
+                        handle_makereport_callback,
+                        NULL,
+                        NULL,
+                        &lserror)) {
+				SysLogMessage(LEVEL_ERROR, "LSCall_ERROR", "{\"errorText\":\"%s\"}", lserror.message);
+			}
+			LSErrorFree(&lserror);
+		}
 	}
 
 	writeErr = 0;
@@ -1608,23 +1648,6 @@ static void ProcessMessage(const char* buff, int buffLen)
 	LogMessage(pri, line);
 }
 
-/* Insert process name, context name, and message ID */
-#define SysLogMessage(level, msgID, ...) \
-		_SysLogMessage(level, PMLOGD_NAME ":" " " PMLOG_IDENTIFIER " " PMLOGD_CONTEXT " " msgID " " __VA_ARGS__);
-
-/**
- * @brief _SysLogMessage
- * Wrapper around the LogMessage command to provide
- * formated arguments.
- * Note this must be called with printf type arguments
- *
- * @param level the log level
- * @param fmt the format string
- * @param ... optional additional arguments
- */
-static void _SysLogMessage(const int level, const char* fmt, ...)
-	 __attribute__((format(printf, 2, 3)));
-
 static void _SysLogMessage(const int level, const char* fmt, ...)
 {
 	va_list 	args;
@@ -1679,7 +1702,7 @@ static gboolean LogConfig(gpointer key, gpointer value, gpointer data) {
 	const PmLogFile_t*  outputP;
 	const PmLogRule_t*  ruleP;
 
-	SysLogMessage(LEVEL_INFO, "CFG_CTX", "\{\"name\":\"%s\"\}", name);
+	SysLogMessage(LEVEL_INFO, "CFG_CTX", "{\"name\":\"%s\"}", name);
 	for (j = 0; j < contextP->numRules; j++)
 	{
 		ruleP = &contextP->rules[ j ];
@@ -1687,7 +1710,7 @@ static gboolean LogConfig(gpointer key, gpointer value, gpointer data) {
 		outputP = &g_outputConfs[ ruleP->outputIndex ];
 
 		SysLogMessage(LEVEL_INFO, "CFG_RULE",
-                      "\{\"filter\":\"%s.%s%s.%s\"\},\{\"output\":\"%s%s\"\}",
+                      "{\"filter\":\"%s.%s%s.%s\"},{\"output\":\"%s%s\"}",
                       GetRuleFacilityStr(ruleP->facility),
                       ruleP->levelInvert ? "!" : "",
                       GetRuleLevelStr(ruleP->level),
@@ -1720,7 +1743,7 @@ static void LogConfigInfo(void)
 		outputP = &g_outputConfs[ i ];
 
 		SysLogMessage(LEVEL_INFO, "CFG_OUTPUT",
-		              "\{\"name\":\"%s\"\},\{\"path\":\"%s\"\},\{\"size\":%d\},\{\"rotations\":%d\}",
+		              "{\"name\":\"%s\"},{\"path\":\"%s\"},{\"size\":%d},{\"rotations\":%d}",
 		              outputP->outputName,
 		              outputP->path,
 		              outputP->maxSize,
@@ -1866,7 +1889,7 @@ static bool force_rotate_ls(LSHandle *lsHandle, LSMessage *lsMessage, void *wd) 
 
 	ret_val = LSMessageReply(lsHandle, lsMessage, jvalue_tostring(reply, response_schema), &g_lsError);
 	if (!ret_val) {
-		SysLogMessage(LEVEL_WARNING, "LSREPLY_ERROR", "{\"errorText\":\"%s\"}", g_lsError.message);
+		SysLogMessage(LEVEL_ERROR, "LSREPLY_ERROR", "{\"errorText\":\"%s\"}", g_lsError.message);
 	}
 
 	LSMessageUnref(lsMessage);
