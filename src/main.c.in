@@ -100,7 +100,6 @@ enum
 
 #define PMLOGDAEMON_FILE_ROTATION_PATTERN "%s.%d.gz"
 
-
 /***********************************************************************
  * globals settings
  ***********************************************************************/
@@ -155,6 +154,8 @@ static void _SysLogMessage(const int level, const char* fmt, ...)
 /* Insert process name, context name, and message ID */
 #define SysLogMessage(level, msgID, ...) \
 		_SysLogMessage(level, PMLOGD_NAME ":" " " PMLOG_IDENTIFIER " [] " PMLOGD_CONTEXT " " msgID " " __VA_ARGS__);
+
+#define ROTATED_LOG_FILE_PATH			"@WEBOS_INSTALL_LOGDIR@/messages.0"
 
 /**
  * @brief ParseRuleFacility
@@ -383,6 +384,13 @@ Error:
 	return err;
 }
 
+bool handle_makelogreport_callback(LSHandle *sh, LSMessage *reply, void *ctx)
+{
+	SysLogMessage(LEVEL_INFO, "MAKELOGREPORT", "%s", j_cstr_to_buffer(LSMessageGetPayload(reply)));
+
+	return true;
+}
+
 /**
  * @brief DoRotateLogFile
  *
@@ -399,6 +407,7 @@ static int DoRotateLogFile(PmLogFile_t* logFileP)
 	int				err;
 	char			oldPath[ PATH_MAX ];
 	char			newPath[ PATH_MAX ];
+	char			logReportCmd[PATH_MAX + 128] = {0,};
 	int				i;
 
 	if (logFileP->rotations <= 0)
@@ -447,10 +456,28 @@ static int DoRotateLogFile(PmLogFile_t* logFileP)
 	   TODO: what should we do if it fails to compress the file? */
 	CompressFile(newPath);
 
+	LSError lserror;
+	LSErrorInit(&lserror);
+
+	if (strncmp(newPath, ROTATED_LOG_FILE_PATH, strlen(ROTATED_LOG_FILE_PATH)) == 0) {
+
+		snprintf(logReportCmd, sizeof(logReportCmd), "{\"filepath\":\"%s.gz\"}", newPath);
+
+		if (!LSCall(g_lsServiceHandle,
+                    "luna://com.webos.rdxd/makelogreport",
+                    logReportCmd,
+                    handle_makelogreport_callback,
+                    NULL,
+                    NULL,
+                    &lserror)) {
+			SysLogMessage(LEVEL_ERROR, "LSCall_ERROR", "{\"errorText\":\"%s\"}", lserror.message);
+		}
+	}
+	LSErrorFree(&lserror);
+
 	return 1;
 }
 
-#define ROTATED_LOG_FILE_PATH			"@WEBOS_INSTALL_LOGDIR@/messages.0"
 #define LINE_BUFFER_SIZE				1024
 #define COMPONENT_BUFFER_SIZE			128
 static int
@@ -557,15 +584,6 @@ static int RotateLogFile(PmLogFile_t* logFileP, int fd, int numToWrite)
 	return result;
 }
 
-bool handle_makereport_callback(LSHandle *sh, LSMessage *reply, void *ctx)
-{
-	raw_buffer result_buffer = j_cstr_to_buffer(LSMessageGetPayload(reply));
-
-	SysLogMessage(LEVEL_INFO, "MAKEREPORT_RESULT", "%s /var/log/messages has been rotated.", result_buffer.m_str);
-
-	return true;
-}
-
 /**
  * @brief WriteToLogFile
  *
@@ -623,20 +641,6 @@ Retry:
 	else
 	{
 		didRotate = RotateLogFile(logFileP, fd, n);
-		if (didRotate) {
-			LSError lserror;
-			LSErrorInit(&lserror);
-			if (!LSCall(g_lsServiceHandle,
-                        "luna://com.webos.rdxd/makereport",
-                        "{\"detail\":\"\",\"cause\":\"Log Rotation\",\"component\":\"PmLogDaemon\"}",
-                        handle_makereport_callback,
-                        NULL,
-                        NULL,
-                        &lserror)) {
-				SysLogMessage(LEVEL_ERROR, "LSCall_ERROR", "{\"errorText\":\"%s\"}", lserror.message);
-			}
-			LSErrorFree(&lserror);
-		}
 	}
 
 	writeErr = 0;
