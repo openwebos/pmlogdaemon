@@ -194,12 +194,12 @@ static bool ParseOutputInit(const char* name, PmLogParseOutput_t* parseOutputP)
 		/* we require that first output be stdlog */
 		if (strcmp(PMLOG_OUTPUT_STDLOG, name) != 0)
 		{
-			ErrPrint("Expected stdlog definition\n");
+			DbgPrint("Expected stdlog definition\n");
 			return false;
 		}
 	}
 	/* need to check that name is valid length and char set */
-	mystrcpy(parseOutputP->name, sizeof(parseOutputP->name), name);
+	strncpy(parseOutputP->name, name, sizeof(parseOutputP->name));
 	parseOutputP->File[ 0 ]		= 0;
 	parseOutputP->MaxSize		= CONF_INT_UNINIT_VALUE;
 	parseOutputP->Rotations		= CONF_INT_UNINIT_VALUE;
@@ -230,12 +230,12 @@ static bool MakeOutputConf(PmLogParseOutput_t* parseOutputP)
 
 	switch (parseOutputP->File[0]) {
 		case 0:
-			ErrPrint("%s: File not specified\n", parseOutputP->name);
+			DbgPrint("%s: File not specified\n", parseOutputP->name);
 			return false;
 		case '/':
 			break;
 		default:
-			ErrPrint("%s: Expected File full path value\n", parseOutputP->name);
+			DbgPrint("%s: Expected File full path value\n", parseOutputP->name);
 			return false;
 	}
 
@@ -246,7 +246,7 @@ static bool MakeOutputConf(PmLogParseOutput_t* parseOutputP)
 	if (NULL == outputConfP) {
 		DbgPrint("creating output %d for %s\n", g_numOutputs+1, parseOutputP->name);
 		if (g_numOutputs >= PMLOG_MAX_NUM_OUTPUTS) {
-			ErrPrint("%s: Too many output definitions\n", parseOutputP->name);
+			DbgPrint("%s: Too many output definitions\n", parseOutputP->name);
 			return false;
 		}
 		outputConfP = &g_outputConfs[g_numOutputs];
@@ -271,10 +271,10 @@ static bool MakeOutputConf(PmLogParseOutput_t* parseOutputP)
 		parseOutputP->MaxSize = PMLOG_DEFAULT_LOG_SIZE;
 	} else {
 		if (parseOutputP->MaxSize < PMLOG_MIN_LOG_SIZE) {
-			ErrPrint("%s: Log size must be > 4KB: setting to that minimum\n", parseOutputP->name);
+			DbgPrint("%s: Log size must be > 4KB: setting to that minimum\n", parseOutputP->name);
 			parseOutputP->MaxSize = PMLOG_MIN_LOG_SIZE;
 		} else if (parseOutputP->MaxSize > PMLOG_MAX_LOG_SIZE) {
-			ErrPrint("%s: Log size must be < 64MB: setting to that maximum\n", parseOutputP->name);
+			DbgPrint("%s: Log size must be < 64MB: setting to that maximum\n", parseOutputP->name);
 			parseOutputP->MaxSize = PMLOG_MAX_LOG_SIZE;
 		}
 	}
@@ -284,10 +284,10 @@ static bool MakeOutputConf(PmLogParseOutput_t* parseOutputP)
 		outputConfP->rotations = PMLOG_DEFAULT_LOG_ROTATIONS;
 	} else {
 		if (parseOutputP->Rotations < PMLOG_MIN_NUM_ROTATIONS) {
-			ErrPrint("%s: Rotations must be >= %d: setting to that minimum\n", parseOutputP->name, PMLOG_MIN_NUM_ROTATIONS);
+			DbgPrint("%s: Rotations must be >= %d: setting to that minimum\n", parseOutputP->name, PMLOG_MIN_NUM_ROTATIONS);
 			parseOutputP->Rotations = PMLOG_MIN_NUM_ROTATIONS;
 		} else if (parseOutputP->Rotations > PMLOG_MAX_NUM_ROTATIONS) {
-			ErrPrint("%s: Rotations must be between <= %d: setting to that maximum\n", parseOutputP->name, PMLOG_MAX_NUM_ROTATIONS);
+			DbgPrint("%s: Rotations must be between <= %d: setting to that maximum\n", parseOutputP->name, PMLOG_MAX_NUM_ROTATIONS);
 			parseOutputP->Rotations = PMLOG_MAX_NUM_ROTATIONS;
 		}
 	}
@@ -359,12 +359,12 @@ static bool ParseContextInit
 		/* we require that first context be the default context */
 		if (strcmp(kPmLogDefaultContextName, name) != 0)
 		{
-			ErrPrint("Expected %s context definition\n", kPmLogDefaultContextName);
+			DbgPrint("Expected %s context definition\n", kPmLogDefaultContextName);
 			return false;
 		}
 	}
 
-	mystrcpy(parseContextP->name, sizeof(parseContextP->name), name);
+	strncpy(parseContextP->name, name, sizeof(parseContextP->name));
 	parseContextP->numRules = 0;
 
 	return true;
@@ -403,7 +403,7 @@ static bool ParseContextData(
 	GetTokenToSep(&s, token, sizeof(token), ".,", &sep);
 	if (!ParseRuleFacility(token, &parseRuleP->facility))
 	{
-		ErrPrint("Facility not parsed: '%s'\n", token);
+		DbgPrint("Facility not parsed: '%s'\n", token);
 		return false;
 	}
 
@@ -420,7 +420,7 @@ static bool ParseContextData(
 		GetTokenToSep(&s, token, sizeof(token), ".,", &sep);
 		if (!ParseRuleLevel(token, &parseRuleP->level))
 		{
-			ErrPrint("Level not parsed: '%s'\n", token);
+			DbgPrint("Level not parsed: '%s'\n", token);
 			return false;
 		}
 	}
@@ -434,7 +434,7 @@ static bool ParseContextData(
 	if (sep == '.')
 	{
 		GetTokenToSep(&s, token, sizeof(token), ".,", &sep);
-		mystrcpy(parseRuleP->program, sizeof(parseRuleP->program), token);
+		strncpy(parseRuleP->program, token, sizeof(parseRuleP->program));
 	}
 	else
 	{
@@ -444,7 +444,7 @@ static bool ParseContextData(
 	/* we should be at the ',' separator between <filter> and <output> */
 	if (sep != ',')
 	{
-		ErrPrint("Expected ',' after filter\n");
+		DbgPrint("Expected ',' after filter\n");
 		return false;
 	}
 
@@ -458,13 +458,13 @@ static bool ParseContextData(
 	GetTokenToSep(&s, token, sizeof(token), ".,", &sep);
 	if (FindOutputByName(token, &parseRuleP->outputIndex) == NULL)
 	{
-		ErrPrint("Output not recognized: '%s'\n", token);
+		DbgPrint("Output not recognized: '%s'\n", token);
 		return false;
 	}
 
 	if (sep != 0)
 	{
-		ErrPrint("Unexpected data after output\n");
+		DbgPrint("Unexpected data after output\n");
 		return false;
 	}
 
@@ -479,7 +479,7 @@ static PmLogContextConf_t * CreateContext(const char* name) {
 	gchar * gName = g_strdup(name);
     contextConfP = g_new0(PmLogContextConf_t, 1);
 	if (contextConfP == NULL) {
-		ErrPrint("%s: Failed to malloc\n", __FUNCTION__);
+		DbgPrint("%s: Failed to malloc\n", __FUNCTION__);
 		abort();
 	}
 
@@ -624,14 +624,14 @@ bool ParseJsonOutputs (const char* file_name)
 					if (ret) { // found name
 						name = jstring_get(value);
 						if (name.m_len == 0 ) {
-							ErrPrint("jstring_get() failed for context %d in configuration file %s for name\n",
+							DbgPrint("jstring_get() failed for context %d in configuration file %s for name\n",
 									outputsIter, file_name);
 							ret = false;
 						} else {
 							ParseOutputInit(name.m_str, &parseOutput);
 						}
 					} else {
-						ErrPrint("'name' missing for context %d in configuration file %s\n", outputsIter, file_name);
+						DbgPrint("'name' missing for context %d in configuration file %s\n", outputsIter, file_name);
 						jstring_free_buffer(name);
 					}
 
@@ -644,14 +644,14 @@ bool ParseJsonOutputs (const char* file_name)
 					if (ret) { // found file
 						file = jstring_get(value);
 						if (!file.m_str) {
-							ErrPrint("jstring_get() failed for context %d in configuration file %s for file\n",
+							DbgPrint("jstring_get() failed for context %d in configuration file %s for file\n",
 									outputsIter, file_name);
 							ret = false;
 						} else {
 							strncpy(parseOutput.File, file.m_str, sizeof(parseOutput.File) - 1);
 						}
 					} else {
-						ErrPrint("'file' missing for context %d in cofiguration file %s\n", outputsIter, file_name);
+						DbgPrint("'file' missing for context %d in cofiguration file %s\n", outputsIter, file_name);
 					}
 
 					if (!ret) { // name and file are mandatory field
@@ -663,30 +663,30 @@ bool ParseJsonOutputs (const char* file_name)
 					ret = jobject_get_exists(outputs, j_cstr_to_buffer("maxSize"), &value);
 					if (ret) { // found maxSize
 						if (jnumber_get_i32(value, &max_size) != CONV_OK) {
-							ErrPrint("jstring_get() failed for context %d in configuration file %s for maxSize\n",
+							DbgPrint("jstring_get() failed for context %d in configuration file %s for maxSize\n",
 									outputsIter, file_name);
 						} else {
 							max_size *= 1024; // Kilobytes
 						}
 					} else {
-						ErrPrint("'maxSize' missing for context %d in configuration file %s\n", outputsIter, file_name);
+						DbgPrint("'maxSize' missing for context %d in configuration file %s\n", outputsIter, file_name);
 					}
 					parseOutput.MaxSize = max_size;
 
 					ret = jobject_get_exists(outputs, j_cstr_to_buffer("rotations"), &value);
 					if (ret) { // found rotations
 						if (jnumber_get_i32(value, &rotations) != CONV_OK) {
-							ErrPrint("%s: context %d: file %s: jstring_get() failed "
+							DbgPrint("%s: context %d: file %s: jstring_get() failed "
 									"for name\n", __func__, outputsIter, file_name);
 						}
 					} else {
-						ErrPrint("'rotations' missing for context %d in configuration file %s\n", outputsIter, file_name);
+						DbgPrint("'rotations' missing for context %d in configuration file %s\n", outputsIter, file_name);
 					}
 					parseOutput.Rotations = rotations;
 
 					/* create new PmLogOuputConf_t object */
 					if (!MakeOutputConf(&parseOutput)) {
-						ErrPrint("MakeOutputConf() failed in %s\n", file_name);
+						DbgPrint("MakeOutputConf() failed in %s\n", file_name);
 						ret = false;
 					}
 					jstring_free_buffer(name);
@@ -698,15 +698,15 @@ bool ParseJsonOutputs (const char* file_name)
 				} // if current entry in outputs array is valid
 			} // for loop for traversing outputs array
 		} else {
-			ErrPrint("invalid outputs in %s\n", file_name);
+			DbgPrint("invalid outputs in %s\n", file_name);
 		}
 	} else {
-		ErrPrint("unable to parse %s\n", file_name);
+		DbgPrint("unable to parse %s\n", file_name);
 	}
 
 	// If the parsing for default.conf is failed, then set as default
 	if ((!strcmp("default.conf", (const char*)basename((char*)file_name))) && !ret) {
-		ErrPrint("outputs parsing was failed in configuration file %s, setting as default\n", file_name);
+		DbgPrint("outputs parsing was failed in configuration file %s, setting as default\n", file_name);
 		SetDefaultConf();
 	}
 
@@ -745,7 +745,7 @@ bool ParseJsonContexts (const char* file_name)
 				jvalue_ref  context;
 				jvalue_ref  value;
 				raw_buffer  name;
-				int         buffer = 0;
+				int         buffer = 1;
 				raw_buffer  flush;
 
 				memset (&name, 0x00, sizeof(name));
@@ -761,7 +761,7 @@ bool ParseJsonContexts (const char* file_name)
 					if (ret) { //found name
 						name = jstring_get(value);
 						if (!name.m_str) {
-							ErrPrint("jstring_get() failed for context %d in configuration file %s for name\n",
+							DbgPrint("jstring_get() failed for context %d in configuration file %s for name\n",
 									contextsIter, file_name);
 							ret = false;
 						} else {
@@ -769,7 +769,7 @@ bool ParseJsonContexts (const char* file_name)
 						}
 
 					} else {
-						ErrPrint("'name' missing for context %d in configuration file %s\n", contextsIter, file_name);
+						DbgPrint("'name' missing for context %d in configuration file %s\n", contextsIter, file_name);
 					}
 
 					if (!ret) { // name is a mandatory field.
@@ -797,13 +797,13 @@ bool ParseJsonContexts (const char* file_name)
 							if (ret) { // found filter
 								filter = jstring_get(value);
 								if (!filter.m_str) {
-									ErrPrint("jstring_get() failed for context %d in configuration file %s for filter\n",
+									DbgPrint("jstring_get() failed for context %d in configuration file %s for filter\n",
 											rulesIter, file_name);
 									ret = false;
 								}
 							}
 							else {
-								ErrPrint("'filter' missing for context %d in configuration file %s\n",
+								DbgPrint("'filter' missing for context %d in configuration file %s\n",
 										rulesIter, file_name);
 							}
 
@@ -816,12 +816,12 @@ bool ParseJsonContexts (const char* file_name)
 							if (ret) { // found output
 								output = jstring_get(value);
 								if (!output.m_str) {
-									ErrPrint("jstring_get() failed for context %d in configuration file %s for output\n",
+									DbgPrint("jstring_get() failed for context %d in configuration file %s for output\n",
 											rulesIter, file_name);
 									ret = false;
 								}
 							} else {
-								ErrPrint("'output' missing for rule %d in cofiguration file %s\n", rulesIter, file_name);
+								DbgPrint("'output' missing for rule %d in cofiguration file %s\n", rulesIter, file_name);
 							}
 
 							if (!ret) { // output is a mandatory field
@@ -837,7 +837,7 @@ bool ParseJsonContexts (const char* file_name)
 							}
 
 							if (!ParseContextData(&parseContext, ruleName, finalString)) {
-								ErrPrint("ParseContextData() failed %s in cofiguration file %s\n", ruleName, file_name);
+								DbgPrint("ParseContextData() failed %s in cofiguration file %s\n", ruleName, file_name);
 								ret = false;
 							}
 
@@ -849,13 +849,13 @@ bool ParseJsonContexts (const char* file_name)
 							}
 						} // for loop for traversing rules array
 					} else {
-						ErrPrint("invalid rules in %s\n", file_name);
+						DbgPrint("invalid rules in %s\n", file_name);
 					} // if rules is valid
 
 					optional_ret = jobject_get_exists(context, j_cstr_to_buffer("bufferSize"), &value);
 					if (optional_ret) { // found bufferSize
 						if (jnumber_get_i32(value, &buffer) != CONV_OK) {
-							ErrPrint("jstring_get() failed for context %d in configuration file %s for bufferSize\n",
+							DbgPrint("jstring_get() failed for context %d in configuration file %s for bufferSize\n",
 									contextsIter, file_name);
 						} else {
 							parseContext.bufferSize = buffer * 1024;
@@ -866,11 +866,11 @@ bool ParseJsonContexts (const char* file_name)
 					if (optional_ret) { //found flushLevel
 						flush = jstring_get(value);
 						if (!flush.m_str) {
-							ErrPrint("jstring_get() failed for context %d in configuration file %s for flushLevel\n",
+							DbgPrint("jstring_get() failed for context %d in configuration file %s for flushLevel\n",
 									contextsIter, file_name);
 						} else {
 							if (!ParseLevel(flush.m_str, &(parseContext.flushLevel))) {
-								ErrPrint("Couldn't parse flushLevel %d\n", contextsIter);
+								DbgPrint("Couldn't parse flushLevel %d\n", contextsIter);
 							}
 						}
 					}
@@ -889,15 +889,15 @@ bool ParseJsonContexts (const char* file_name)
 				}
 			} // for loop for traversing contexts array
 		} else {
-			ErrPrint("invalid contexts in %s\n", file_name);
+			DbgPrint("invalid contexts in %s\n", file_name);
 		}
 	} else {
-		ErrPrint("unable to parse %s\n", file_name);
+		DbgPrint("unable to parse %s\n", file_name);
 	}
 
 	// If the parsing for default.conf is failed, then set as default
 	if ((!strcmp("default.conf", (const char*) basename((char*)file_name))) && !ret) {
-		ErrPrint("contexts parsing was failed in configuration file %s, setting as default\n", file_name);
+		DbgPrint("contexts parsing was failed in configuration file %s, setting as default\n", file_name);
 		SetDefaultConf();
 	}
 

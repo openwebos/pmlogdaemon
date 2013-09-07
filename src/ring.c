@@ -58,7 +58,7 @@ PmLogRingBuffer_t* RBNew(int bufferSize, int flushLevel) {
 		if (ret) {
 			if (bufferSize < RBMinBufferSize) {
 				ret->bufferSize = RBMinBufferSize;
-				ErrPrint("%s: bufferSize must be at least %d bytes.\n", __FUNCTION__, RBMinBufferSize);
+				DbgPrint("%s: bufferSize must be at least %d bytes.\n", __FUNCTION__, RBMinBufferSize);
 			} else {
 				ret->bufferSize = bufferSize;
 			}
@@ -89,19 +89,19 @@ static inline bool RBValidPos(PmLogRingBuffer_t* rb, const char* p) {
  */
 static bool RBValid(PmLogRingBuffer_t* rb) {
 	if (rb == NULL) {
-		ErrPrint("%s: null ring buffer\n", __FUNCTION__);
+		DbgPrint("%s: null ring buffer\n", __FUNCTION__);
 		return false;
 	}
 	if (rb->bufferSize < RBMinBufferSize) {
-		ErrPrint("%s: bufferSize must be at least %d bytes.\n", __FUNCTION__, RBMinBufferSize);
+		DbgPrint("%s: bufferSize must be at least %d bytes.\n", __FUNCTION__, RBMinBufferSize);
 		return false;
 	}
 	 if (!rb->isEmpty && !(rb->buff)) {
-		ErrPrint("%s: buff is missing.\n", __FUNCTION__);
+		DbgPrint("%s: buff is missing.\n", __FUNCTION__);
 		return false;
 	}
 	if (!RBValidPos(rb, rb->nextWritePos)) {
-		ErrPrint("%s: end nextWritePos out of range/n", __FUNCTION__);
+		DbgPrint("%s: end nextWritePos out of range/n", __FUNCTION__);
 		return false;
 	}
 	return true;

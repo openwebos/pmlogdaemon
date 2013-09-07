@@ -38,170 +38,6 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-
-/**
- * @brief mystrcpy
- *
- * Easy to use wrapper for strcpy to make it safe against buffer
- * overflows and to report any truncations.
- *
- * @param dst
- * @param dstSize
- * @param src
- */
-void mystrcpy(char* dst, size_t dstSize, const char* src)
-{
-	size_t	srcLen;
-
-	if (dst == NULL)
-	{
-		ErrPrint("mystrcpy null dst\n");
-		return;
-	}
-
-	if (dstSize < 1)
-	{
-		ErrPrint("mystrcpy invalid dst size\n");
-		return;
-	}
-
-	dst[ 0 ] = 0;
-
-	if (src == NULL)
-	{
-		ErrPrint("mystrcpy null src\n");
-		return;
-	}
-
-	srcLen = strlen(src);
-	if (srcLen >= dstSize)
-	{
-		ErrPrint("mystrcpy buffer overflow on '%s'\n", src);
-		srcLen = dstSize - 1;
-	}
-
-	memcpy(dst, src, srcLen);
-	dst[ srcLen ] = 0;
-}
-
-
-/**
- * @brief mystrcat
- *
- * Easy to use wrapper for strcat to make it safe against buffer
- * overflows and to report any truncations.
- *
- * @param dst
- * @param dstSize
- * @param src
- */
-void mystrcat(char* dst, size_t dstSize, const char* src)
-{
-	size_t	dstLen;
-	size_t	srcLen;
-	size_t	maxLen;
-
-	if (dst == NULL)
-	{
-		ErrPrint("mystrcat null dst\n");
-		return;
-	}
-
-	if (dstSize < 1)
-	{
-		ErrPrint("mystrcat invalid dst size\n");
-		return;
-	}
-
-	dstLen = strlen(dst);
-	if (dstLen >= dstSize)
-	{
-		ErrPrint("mystrcat invalid dst len\n");
-		return;
-	}
-
-	if (src == NULL)
-	{
-		ErrPrint("mystrcat null src\n");
-		return;
-	}
-
-	srcLen = strlen(src);
-	if (srcLen < 1)
-	{
-		/* empty string, do nothing */
-		return;
-	}
-
-	maxLen = (dstSize - 1) - dstLen;
-
-	if (srcLen > maxLen)
-	{
-		ErrPrint("mystrcat buffer overflow\n");
-		srcLen = maxLen;
-	}
-
-	if (srcLen > 0)
-	{
-		memcpy(dst + dstLen, src, srcLen);
-		dst[ dstLen + srcLen ] = 0;
-	}
-}
-
-
-/**
- * @brief mysprintf
- *
- * Easy to use wrapper for sprintf to make it safe against buffer
- * overflows and to report any truncations.
- *
- * @param dst
- * @param dstSize
- * @param fmt
- * @param ...
- */
-void mysprintf(char* dst, size_t dstSize, const char* fmt, ...)
-{
-	va_list 		args;
-	int				n;
-
-	if (dst == NULL)
-	{
-		ErrPrint("mysprintf null dst\n");
-		return;
-	}
-
-	if (dstSize < 1)
-	{
-		ErrPrint("mysprintf invalid dst size\n");
-		return;
-	}
-
-	dst[ 0 ] = 0;
-
-	if (fmt == NULL)
-	{
-		ErrPrint("mysprintf null fmt\n");
-		return;
-	}
-
-	va_start(args, fmt);
-
-	n = vsnprintf(dst, dstSize, fmt, args);
-	if (n < 0)
-	{
-		ErrPrint("mysprintf error\n");
-		dst[ 0 ] = 0;
-	}
-	else if (((size_t) n) >= dstSize)
-	{
-		ErrPrint("mysprintf buffer overflow\n");
-		dst[ dstSize - 1 ] = 0;
-	}
-
-	va_end(args);
-}
-
 typedef struct
 {
 	char	path[ PATH_MAX ];
@@ -239,7 +75,7 @@ bool LockProcess(const char* component)
 	/* create the locks directory if necessary */
 	(void) mkdir(locksDirPath, 0777);
 
-	mysprintf(lock->path, sizeof(lock->path), "%s/%s.pid", locksDirPath,
+	snprintf(lock->path, sizeof(lock->path), "%s/%s.pid", locksDirPath,
 		component);
 
 	/* open or create the lock file */
@@ -247,7 +83,7 @@ bool LockProcess(const char* component)
 	if (fd < 0)
 	{
 		err = errno;
-		ErrPrint("Failed to open lock file (err %d, %s), exiting.\n",
+		DbgPrint("Failed to open lock file (err %d, %s), exiting.\n",
 			err, strerror(err));
 		return false;
 	}
@@ -259,11 +95,11 @@ bool LockProcess(const char* component)
 		err = errno;
 		if ((err == EDEADLK) || (err == EAGAIN))
 		{
-			ErrPrint("Failed to acquire lock, exiting.\n");
+			DbgPrint("Failed to acquire lock, exiting.\n");
 		}
 		else
 		{
-			ErrPrint("Failed to acquire lock (err %d, %s), exiting.\n",
+			DbgPrint("Failed to acquire lock (err %d, %s), exiting.\n",
 				err, strerror(err));
 		}
 		return false;
@@ -279,7 +115,7 @@ bool LockProcess(const char* component)
 	}
 
 	/* write the pid to the file to aid debugging */
-	mysprintf(pidStr, sizeof(pidStr), "%d\n", pid);
+	snprintf(pidStr, sizeof(pidStr), "%d\n", pid);
 	pidStrLen = (int) strlen(pidStr);
 	result = write(fd, pidStr, pidStrLen);
 	if (result < pidStrLen)
@@ -410,7 +246,7 @@ bool ParseSize(const char* valStr, int* nP)
 	char	s[ 32 ];
 	int		multiplier;
 
-	mystrcpy(s, sizeof(s), valStr);
+	strncpy(s, valStr, sizeof(s));
 
 	multiplier = 1;
 

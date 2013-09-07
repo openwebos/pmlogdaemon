@@ -90,6 +90,8 @@ enum
 /* maximum line length that can be handled, per RFC 3164 */
 #define	MAXLINE			1024
 
+#define PMLODAEMON_CONTEXT "pmlogdaemon"
+
 /*
  * see the comments in PmKLogDaemon regarding the issue that glibc
  * does not allow a user-space client to mark a message with kernel
@@ -129,6 +131,8 @@ static char			g_pathLog[ PATH_MAX ];
 static PmLogFile_t  g_logFiles[ PMLOG_MAX_NUM_OUTPUTS ];
 
 static bool         g_captureJSExceptions;
+
+PmLogContext g_context;
 
 /**********************************************************************
  *	Function declarations
@@ -282,11 +286,11 @@ static void FormatPri(int pri, char* str, size_t size)
 
 	if ((facStr != NULL) && (lvlStr != NULL))
 	{
-		mysprintf(str, size, "%s.%s", facStr, lvlStr);
+		snprintf(str, size, "%s.%s", facStr, lvlStr);
 	}
 	else
 	{
-		mysprintf(str, size, "<%d>", pri);
+		snprintf(str, size, "<%d>", pri);
 	}
 }
 
@@ -308,8 +312,7 @@ static int myremove(const char* filename) {
 		err = errno;
 		if (errno != ENOENT)
 		{
-			ErrPrint("myremove: remove error: %s\n",
-					strerror(err));
+			PmLogError(g_context, "REMOVE_FILE", 1, PMLOGKS("ErrorText", strerror(err)), "");
 		}
 	}
 	return err;
@@ -340,20 +343,20 @@ static int CompressFile(const char *infilename)
 	gzFile * outfile = NULL;
 	FILE * infile = NULL;
 	if (!outfilename) {
-		ErrPrint("CompressFile: Failed to construct compressed filename.\n");
 		err = EIO;
+		PmLogError(g_context, "COMPRESS_FILE", 1, PMLOGKS("ErrorText", strerror(err)), "Failed to construct compressed filename.");
 		goto Error;
 	}
 	infile = fopen(infilename, "rb");
 	if (!infile) {
-		ErrPrint("CompressFile: Failed to open input file.\n");
 		err = EIO;
+		PmLogError(g_context, "COMPRESS_FILE", 1, PMLOGKS("ErrorText", strerror(err)), "Failed to open input file");
 		goto Error;
 	}
 	outfile = gzopen(outfilename, "wb");
 	if (outfile == Z_NULL ) {
-		ErrPrint("CompressFile: Failed to create compressed file.\n");
 		err = EIO;
+		PmLogError(g_context, "COMPRESS_FILE", 1, PMLOGKS("ErrorText", strerror(err)), "Failed to create compressed file");
 		outfile = NULL;
 		goto Error;
 	}
@@ -362,7 +365,7 @@ static int CompressFile(const char *infilename)
 		total_read += num_read;
 		num_written = gzwrite(outfile, inbuffer, num_read);
 		if (num_written != num_read) {
-			ErrPrint("CompressFile: gzwrite error: %s \n", gzerror(outfile, &err));
+			PmLogError(g_context, "COMPRESS_FILE", 1, PMLOGKS("ErrorText", gzerror(outfile, &err)), "gzwrite error");
 			goto Error;
 		}
 		total_written += num_written;
@@ -370,9 +373,10 @@ static int CompressFile(const char *infilename)
 	/* delete old file */
 	err = myremove(infilename);
 
-	DbgPrint("CompressFile: Read %lu bytes, Wrote %lu bytes, Compression factor %4.2f%%\n",
+	PmLogDebug(g_context, "CompressFile: Read %lu bytes, Wrote %lu bytes, Compression factor %4.2f%%\n",
 			total_read, total_written,
 			(1.0-total_written*1.0/total_read)*100.0);
+
 Error:
 	if (outfilename)
 		free(outfilename);
@@ -413,7 +417,7 @@ static int DoRotateLogFile(PmLogFile_t* logFileP)
 	if (logFileP->rotations <= 0)
 	{
 		/* we require rotations >= 1 */
-		ErrPrint("RotateLogFile: invalid number of rotations: %d\n", logFileP->rotations);
+		PmLogError(g_context, "ROTATE_LOG", 1, PMLOGKFV("ROTATION", "%d", logFileP->rotations), "invalid number of rotations");
 		return 0;
 	}
 
@@ -423,8 +427,8 @@ static int DoRotateLogFile(PmLogFile_t* logFileP)
 	   ... */
 	for (i = logFileP->rotations - 1; i > 0; i--)
 	{
-		mysprintf(oldPath, sizeof(oldPath), PMLOGDAEMON_FILE_ROTATION_PATTERN, logFileP->path, i - 1);
-		mysprintf(newPath, sizeof(newPath), PMLOGDAEMON_FILE_ROTATION_PATTERN, logFileP->path, i);
+		snprintf(oldPath, sizeof(oldPath), PMLOGDAEMON_FILE_ROTATION_PATTERN, logFileP->path, i - 1);
+		snprintf(newPath, sizeof(newPath), PMLOGDAEMON_FILE_ROTATION_PATTERN, logFileP->path, i);
 		/* note that rename will replace the old file if present */
 		result = rename(oldPath, newPath);
 		if (result < 0)
@@ -432,20 +436,18 @@ static int DoRotateLogFile(PmLogFile_t* logFileP)
 			err = errno;
 			if (err != ENOENT)
 			{
-				DbgPrint("RotateLogFile: rename error: %s\n",
-					strerror(err));
+				PmLogDebug(g_context, "RotateLogFile: rename error: %s\n", strerror(err));
 			}
 		}
 	}
 
 	/* the assumption is that the current file is flushed by the rename */
-	mysprintf(newPath, sizeof(newPath), "%s.%d", logFileP->path, 0);
+	snprintf(newPath, sizeof(newPath), "%s.%d", logFileP->path, 0);
 	result = rename(logFileP->path, newPath);
 	if (result < 0)
 	{
 		err = errno;
-		DbgPrint("RotateLogFile: rename error: %s\n",
-			strerror(err));
+		PmLogDebug(g_context, "RotateLogFile: rename error: %s\n", strerror(err));
 	}
 
 	if (g_captureJSExceptions) {
@@ -606,7 +608,7 @@ static int WriteToLogFile(PmLogFile_t* logFileP, const char* p, int n)
 	if ((p == NULL) || (n <= 0))
 	{
 		/* shouldn't happen, but check anyway */
-		DbgPrint("%s: invalid parameter\n",__FUNCTION__);
+		PmLogDebug(g_context, "%s: invalid parameter",__FUNCTION__);
 		return 0;
 	}
 
@@ -619,7 +621,7 @@ Retry:
 	if (fd < 0)
 	{
 		err = errno;
-		ErrPrint("%s: open error: %s\n",__FUNCTION__, strerror(err));
+		PmLogError(g_context, "OPEN_FILE", 1, PMLOGKS("ErrorText", strerror(err)), "open error");
 		return err;
 	}
 
@@ -630,8 +632,7 @@ Retry:
 	if (result != 0)
 	{
 		err = errno;
-		ErrPrint("%s: fcntl F_SETLKW F_WRLCK error: %s\n", __FUNCTION__,
-			strerror(err));
+		PmLogError(g_context, "GET_FILE_ADVISORY", 1, PMLOGKS("ErrorText", strerror(err)), "fcntl F_SETLKW F_WRLCK error");
 	}
 
 	if (didRotate)
@@ -646,19 +647,19 @@ Retry:
 	writeErr = 0;
 	if (!didRotate)
 	{
-        errno = 0;
-        nWritten = write(fd, p, n);
-        if (nWritten != n)
-        {
-            err = errno;
-            if (err) {
-                ErrPrint("%s: write(%s) error: %d %s\n", __func__, logFileP->path, err, strerror(err));
-                writeErr = err;
-            } else {
-                ErrPrint("%s: write did not complete : %s\n", __func__, logFileP->path);
-            }
-        }
-    }
+		errno = 0;
+		nWritten = write(fd, p, n);
+		if (nWritten != n)
+		{
+			err = errno;
+			if (err) {
+				PmLogError(g_context, "WRITE_FILE", 1, PMLOGKS("ErrorText", strerror(err)), "write error");
+				writeErr = err;
+			} else {
+				PmLogError(g_context, "WRITE_FILE", 1, PMLOGKS("LogFilePath", logFileP->path), "write did not complete");
+			}
+		}
+	}
 
 	/* release advisory file lock */
 	memset(&fl, 0, sizeof(fl));
@@ -667,8 +668,7 @@ Retry:
 	if (result != 0)
 	{
 		err = errno;
-		ErrPrint("%s: fcntl F_SETLKW F_UNLCK error: %s\n", __FUNCTION__,
-			strerror(err));
+		PmLogError(g_context, "WRITE_FILE", 1, PMLOGKS("ErrorText", strerror(err)), "fcntl F_SETLKW F_UNLCK error");
 	}
 
 	/* close the file, which will sync (flush) it */
@@ -700,14 +700,13 @@ static int ForceRotateLogFile(PmLogFile_t* logFileP)
 	if (result != 0)
 	{
 		err = errno;
-		DbgPrint("ForceRotateLogFile: stat error: %s\n",
-			strerror(err));
+		PmLogDebug(g_context, "ForceRotateLogFile: stat error: %s\n", strerror(err));
 		return 0;
 	}
 
 	if (!S_ISREG(fileStat.st_mode))
 	{
-		DbgPrint("ForceRotateLogFile: not regular file\n");
+		PmLogDebug(g_context, "ForceRotateLogFile: not regular file\n");
 		return 0;
 	}
 
@@ -811,7 +810,7 @@ static void OutputMessage(
 	PmLogFile_t*				logFileP;
 
 	if (contextConfP == NULL) {
-		ErrPrint("%s: contextConfP is null\n", __FUNCTION__);
+		PmLogError(g_context, "INVALID_PARAMETER", 1, PMLOGKS("ErrorText", "contextConfP is null"), "");
 		return;
 	}
 
@@ -843,41 +842,41 @@ static void OutputMessage(
 		{
 			int err_code = WriteToLogFile(logFileP, msg, strlen(msg));
 
-            /* out of space.. clear it and report it */
-            if (err_code == ENOSPC) {
-                ErrPrint("%s: Out of space! making room: %d\n", __func__, err_code);
-                gchar *file_name = NULL;
-                GError *gerr = NULL;
-                if (!g_spawn_command_line_sync("@WEBOS_INSTALL_DATADIR@/PmLogDaemon/show_disk_usage.sh @WEBOS_INSTALL_LOGDIR@", &file_name, NULL, NULL, &gerr)) {
-                    ErrPrint("%s: spawn failed: %s\n", __func__, gerr->message);
-                    g_error_free(gerr);
-                } else {
-                    g_return_if_fail(file_name);
-                    g_strstrip(file_name);
+			/* out of space.. clear it and report it */
+			if (err_code == ENOSPC) {
+				PmLogError(g_context, "OUTOFSPACE", 1, PMLOGKFV("ErrorCode", "%d", err_code), "");
+				gchar *file_name = NULL;
+				GError *gerr = NULL;
+				if (!g_spawn_command_line_sync("@WEBOS_INSTALL_DATADIR@/PmLogDaemon/show_disk_usage.sh @WEBOS_INSTALL_LOGDIR@", &file_name, NULL, NULL, &gerr)) {
+					PmLogError(g_context, "SPAWN_FAILED", 1, PMLOGKS("ErrorText", gerr->message), "");
+					g_error_free(gerr);
+				} else {
+					g_return_if_fail(file_name);
+					g_strstrip(file_name);
 
-                    /* clear some space */
-                    int j;
-                    for (j = 0; j < g_numOutputs; j++)
-                        LogFileKillRotations(&g_logFiles[j], 0);
+					/* clear some space */
+					int j;
+					for (j = 0; j < g_numOutputs; j++)
+						LogFileKillRotations(&g_logFiles[j], 0);
 
-                    RdxReportMetadata md = create_rdx_report_metadata();
-                    rdx_report_metadata_set_component(md, "syslog");
-                    rdx_report_metadata_set_cause(md, "@WEBOS_INSTALL_LOGDIR@ full");
-                    rdx_report_metadata_set_detail(md, "@WEBOS_INSTALL_LOGDIR@ full");
-                    if (!rdx_make_report_from_file(md, file_name)) {
-                        /* more aggressive cleanup */
-                        ErrPrint("%s: couldn't create low disk space report after clearing logs.. Kill 'em all!\n", __func__);
-                        system("/bin/rm -rf @WEBOS_INSTALL_LOGDIR@/* @WEBOS_INSTALL_LOGDIR@/.*");
-                        system("/usr/bin/pkill -SIGHUP rdxd"); /* restart rdxd */
-                        if (!rdx_make_report_from_file(md, file_name)) {
-                            ErrPrint("%s: still couldnt make report after nuking @WEBOS_INSTALL_LOGDIR@!\n", __func__);
-                        }
-                    }
-                    destroy_rdx_report_metadata(md);
-                }
-                g_remove(file_name);
-                g_free(file_name);
-            }
+					RdxReportMetadata md = create_rdx_report_metadata();
+					rdx_report_metadata_set_component(md, "syslog");
+					rdx_report_metadata_set_cause(md, "@WEBOS_INSTALL_LOGDIR@ full");
+					rdx_report_metadata_set_detail(md, "@WEBOS_INSTALL_LOGDIR@ full");
+					if (!rdx_make_report_from_file(md, file_name)) {
+						/* more aggressive cleanup */
+						PmLogDebug(g_context, "%s: couldn't create low disk space report after clearing logs.. Kill 'em all!\n", __func__);
+						system("/bin/rm -rf @WEBOS_INSTALL_LOGDIR@/* @WEBOS_INSTALL_LOGDIR@/.*");
+						system("/usr/bin/pkill -SIGHUP rdxd"); /* restart rdxd */
+						if (!rdx_make_report_from_file(md, file_name)) {
+							PmLogDebug(g_context, "%s: still couldnt make report after nuking @WEBOS_INSTALL_LOGDIR@!\n", __func__);
+						}
+					}
+					destroy_rdx_report_metadata(md);
+				}
+				g_remove(file_name);
+				g_free(file_name);
+			}
 		}
 	}
 }
@@ -1127,7 +1126,7 @@ static bool HandleLogCommand(const char* msg)
 
 	if (strcmp(msg, "rotate") == 0)
 	{
-		DbgPrint("HandleLogCommand: forcing rotation of main log\n");
+		PmLogDebug(g_context, "HandleLogCommand: forcing rotation of main log\n");
 		logFileP = &g_logFiles[ 0 ];
 		(void) ForceRotateLogFile(logFileP);
 		return true;
@@ -1148,7 +1147,7 @@ static __time_t getMonotonicTime() {
 	struct timespec ts;
 	result = clock_gettime(CLOCK_MONOTONIC,&ts);
 	if (result != 0) {
-		ErrPrint("%s: Problem reading time", __FUNCTION__);
+		PmLogDebug(g_context, "%s: Problem reading time", __FUNCTION__);
 		return -1;
 	}
 	return ts.tv_sec;
@@ -1163,13 +1162,13 @@ static __time_t getMonotonicTime() {
  * @param data the context to flush under
  */
 void FlushMessage(const char* msg, gpointer data) {
-	DbgPrint("%s: called with msg=%s\n", __FUNCTION__, msg);
+	PmLogDebug(g_context, "%s: called with msg=%s\n", __FUNCTION__, msg);
 	const PmLogContextConf_t*	contextConfP = data;
 	gchar** tokens 		= g_strsplit(msg,"/", 3);
 	/* TODO: report corrupted buff msg, or print err msg */
 	if (tokens == NULL) {
 		/* no buffer message */
-		DbgPrint("%s: No buffer message\n", __FUNCTION__);
+		PmLogDebug(g_context, "%s: No buffer message\n", __FUNCTION__);
 	} else if (tokens[0] && tokens[1] && tokens[2]) {
 		/* TODO: check size of tokens */
 		char *p;
@@ -1177,7 +1176,7 @@ void FlushMessage(const char* msg, gpointer data) {
 		int pri = strtol(tokens[0], &p, 10);
 
 		if ((errno != 0) || ((*p) != '\0')) {
-			ErrPrint("%s: parse error on pri token\n", __FUNCTION__);
+			PmLogDebug(g_context, "%s: parse error on pri token\n", __FUNCTION__);
 			goto error;
 		}
 		gchar* programName 	= tokens[1];
@@ -1186,7 +1185,7 @@ void FlushMessage(const char* msg, gpointer data) {
 		OutputMessage(contextConfP, pri, programName, outMsg);
 	} else {
 		/* corrupted buffer message */
-		DbgPrint("%s: Corrupted buffer message\n", __FUNCTION__);
+		PmLogDebug(g_context, "%s: Corrupted buffer message\n", __FUNCTION__);
 	}
 error:
 	if (tokens)
@@ -1223,7 +1222,7 @@ static gchar* MakeMessageTimestamp() {
 		fracSecStr[ 0 ] = 0;
 		if (g_timeStampFracSecDigits > 0)
 		{
-			mysprintf(fracSecStr, sizeof(fracSecStr),
+			snprintf(fracSecStr, sizeof(fracSecStr),
 					".%06ld", nowTv.tv_usec);
 			fracSecStr[ 1 + g_timeStampFracSecDigits ] = 0;
 		}
@@ -1273,10 +1272,10 @@ gboolean FlushNotMe(gpointer key, gpointer value, gpointer data) {
 
 	if (keyContextP == me) {
 		/* Don't flush me. It will be done last so I show up recently in log */
-		DbgPrint("%s: %s will be flushing last, skipping\n",__FUNCTION__, keyContextP->contextName);
+		PmLogDebug(g_context, "%s: %s will be flushing last, skipping",__FUNCTION__, keyContextP->contextName);
 	} else if ( keyContextP->rb) {
 		/* have RB, need to flush */
-		DbgPrint("%s: %s is now flushing...\n",__FUNCTION__, keyContextP->contextName);
+		PmLogDebug(g_context, "%s: %s is now flushing...",__FUNCTION__, keyContextP->contextName);
 
 		if (!(keyContextP->rb->isEmpty)) {
 
@@ -1308,7 +1307,7 @@ gboolean FlushNotMe(gpointer key, gpointer value, gpointer data) {
 		}
 	} else {
 		/* no RB, keep going */
-		DbgPrint("%s: %s doesnt have ring buffer, not flushing\n",__FUNCTION__, keyContextP->contextName);
+		PmLogDebug(g_context, "%s: %s doesnt have ring buffer, not flushing",__FUNCTION__, keyContextP->contextName);
 	}
 	return FALSE;
 }
@@ -1409,7 +1408,7 @@ static void LogMessage(int pri, const char* msg)
 	if (msgNext != NULL)
 	{
 		/* integrate into msgProgram */
-		mysprintf(msgProgram + msgProgramNameLen + 1,
+		snprintf(msgProgram + msgProgramNameLen + 1,
 			sizeof(msgProgram) - msgProgramNameLen + 1, "%.*s",
 			msgNext - msgCurr, msgCurr);
 
@@ -1454,17 +1453,17 @@ static void LogMessage(int pri, const char* msg)
 	{
 		contextConfP = g_tree_lookup(g_contextConfs, kPmLogDefaultContextName);
 		if (contextConfP == NULL) {
-			ErrPrint("%s, default context not found!\n", __FUNCTION__);
+			PmLogDebug(g_context, "%s, default context not found!\n", __FUNCTION__);
 			return;
 		}
 	}
 
 	/* Has ring buffer */
 	if (contextConfP->rb) {
-		DbgPrint("%s: %s has RB\n", __FUNCTION__, contextConfP->contextName);
+		PmLogDebug(g_context, "%s: %s has RB\n", __FUNCTION__, contextConfP->contextName);
 		int lvl = pri & LOG_PRIMASK;
 		if (lvl <= contextConfP->rb->flushLevel) {
-			DbgPrint("%s: %s Flushing!\n", __FUNCTION__, contextConfP->contextName);
+			PmLogDebug(g_context, "%s: %s Flushing!\n", __FUNCTION__, contextConfP->contextName);
 			g_tree_foreach(g_contextConfs, FlushNotMe, contextConfP);
 
 			timeStamp = MakeMessageTimestamp();
@@ -1493,7 +1492,7 @@ static void LogMessage(int pri, const char* msg)
 			g_free(flushMsg);
 
 		} else {
-			DbgPrint("%s: %s buffering!\n", __FUNCTION__, contextConfP->contextName);
+			PmLogDebug(g_context, "%s: %s buffering!\n", __FUNCTION__, contextConfP->contextName);
 			/* buffer */
 			char buffMsg[contextConfP->rb->bufferSize];
 			snprintf(buffMsg, sizeof(buffMsg) - 1, "%d/%s/%s", pri, programName, outMsg->str);
@@ -1678,7 +1677,7 @@ static GMainLoop * mainLoop = NULL;
 static void QuitSysLogD(int sig)
 {
 	/* exit based on external signal */
-	SysLogMessage(LEVEL_DEBUG, "PROC_EXIT", "");
+	PmLogDebug(g_context, "PROC_EXIT");
 	g_main_loop_quit(mainLoop);
 }
 
@@ -1705,23 +1704,27 @@ static gboolean LogConfig(gpointer key, gpointer value, gpointer data) {
 
 	const PmLogFile_t*  outputP;
 	const PmLogRule_t*  ruleP;
+	char filter[32] = {0,};
+	char output[32] = {0,};
 
-	SysLogMessage(LEVEL_INFO, "CFG_CTX", "{\"name\":\"%s\"}", name);
+	PmLogInfo(g_context, "CFG_CTX", 1, PMLOGKS("Name", name), "");
 	for (j = 0; j < contextP->numRules; j++)
 	{
 		ruleP = &contextP->rules[ j ];
 
 		outputP = &g_outputConfs[ ruleP->outputIndex ];
 
-		SysLogMessage(LEVEL_INFO, "CFG_RULE",
-                      "{\"filter\":\"%s.%s%s.%s\"},{\"output\":\"%s%s\"}",
-                      GetRuleFacilityStr(ruleP->facility),
-                      ruleP->levelInvert ? "!" : "",
-                      GetRuleLevelStr(ruleP->level),
-                      (ruleP->program == NULL) ? "*" : ruleP->program,
-                      ruleP->omitOutput ? "-" : "",
-                      outputP->outputName
-                      );
+		snprintf(filter, sizeof(filter), "%s.%s%s.%s",
+                 GetRuleFacilityStr(ruleP->facility),
+                 ruleP->levelInvert ? "!" : "",
+                 GetRuleLevelStr(ruleP->level),
+                 (ruleP->program == NULL) ? "*" : ruleP->program);
+
+		snprintf(output, sizeof(output), "%s%s",
+                 ruleP->omitOutput ? "-" : "",
+                 outputP->outputName);
+
+		PmLogInfo(g_context, "CFG_RULE", 2, PMLOGKS("Filter", filter), PMLOGKS("Output", output), "");
 	}
 	/* return true to stop the traversal */
 	return FALSE;
@@ -1746,13 +1749,12 @@ static void LogConfigInfo(void)
 	{
 		outputP = &g_outputConfs[ i ];
 
-		SysLogMessage(LEVEL_INFO, "CFG_OUTPUT",
-		              "{\"name\":\"%s\"},{\"path\":\"%s\"},{\"size\":%d},{\"rotations\":%d}",
-		              outputP->outputName,
-		              outputP->path,
-		              outputP->maxSize,
-		              outputP->rotations
-		              );
+		PmLogInfo(g_context, "CFG_OUTPUT", 4,
+                  PMLOGKS("Name", outputP->outputName),
+                  PMLOGKS("Path", outputP->path),
+                  PMLOGKFV("Size", "%d", outputP->maxSize),
+                  PMLOGKFV("Rotations", "%d", outputP->rotations),
+                  "");
 	}
 
 	g_tree_foreach(g_contextConfs, LogConfig, NULL);
@@ -1831,7 +1833,7 @@ gboolean HandleNewLog(GIOChannel *source,GIOCondition condition, gpointer data) 
 	if ((condition & G_IO_IN) || (condition & G_IO_PRI)) {
 		bytes = recv(sock_fd, buff, sizeof(buff) - 1, 0);
 		if (bytes <= 0) {
-			ErrPrint("%s: recv returned %d", __FUNCTION__, bytes);
+			DbgPrint("%s: recv returned %d", __FUNCTION__, bytes);
 			goto error;
 		}
 
@@ -1840,7 +1842,7 @@ gboolean HandleNewLog(GIOChannel *source,GIOCondition condition, gpointer data) 
 			ProcessMessage(buff, bytes);
 		}
 	} else {
-		ErrPrint("%s: unexpected watch event condition: %d\n", __FUNCTION__, condition);
+		DbgPrint("%s: unexpected watch event condition: %d\n", __FUNCTION__, condition);
 	}
 error:
 	/* TODO: should this ever return FALSE, to close the channel? */
@@ -1893,7 +1895,7 @@ static bool force_rotate_ls(LSHandle *lsHandle, LSMessage *lsMessage, void *wd) 
 
 	ret_val = LSMessageReply(lsHandle, lsMessage, jvalue_tostring(reply, response_schema), &g_lsError);
 	if (!ret_val) {
-		SysLogMessage(LEVEL_ERROR, "LSREPLY_ERROR", "{\"errorText\":\"%s\"}", g_lsError.message);
+		PmLogError(g_context, "LSREPLY_ERROR", 1, PMLOGKS("ErrorText", g_lsError.message), "");
 	}
 
 	LSMessageUnref(lsMessage);
@@ -1915,19 +1917,19 @@ static bool register_luna_service(GMainLoop *mainLoop) {
 
 	result = LSRegister(PMLOGD_APP_ID, &g_lsServiceHandle, &g_lsError);
 	if (!result) {
-		SysLogMessage(LEVEL_WARNING, "LSREGISTER_ERROR", "{\"errorText\":\"LSRegister ERROR\"}");
+		PmLogError(g_context, "LSREGISTER_ERROR", 1, PMLOGKS("ErrorText", "LSRegister ERROR"), "");
 		return false;
 	}
 
 	result = LSRegisterCategory (g_lsServiceHandle, "/", lsMethod_public, NULL, NULL, &g_lsError);
 	if (!result) {
-		SysLogMessage(LEVEL_WARNING, "LSREGISTER_ERROR", "{\"errorText\":\"LSRegisterCategory ERROR\"}");
+		PmLogError(g_context, "LSREGISTER_ERROR", 1, PMLOGKS("ErrorText", "LSRegisterCategory ERROR"), "");
 		return false;
 	}
 
 	result = LSGmainAttach (g_lsServiceHandle, mainLoop, &g_lsError);
 	if (!result) {
-		SysLogMessage(LEVEL_WARNING, "LSREGISTER_ERROR", "{\"errorText\":\"LSGmainAttach ERROR\"}");
+		PmLogError(g_context, "LSREGISTER_ERROR", 1, PMLOGKS("ErrorText", "LSGmainAttach ERROR"), "");
 		return false;
 	}
 
@@ -1981,7 +1983,7 @@ static int RunSysLogD(void)
 	if (sock_fd < 0)
 	{
 		err = errno;
-		ErrPrint("RunSysLogD: socket error: %s\n", strerror(err));
+		DbgPrint("RunSysLogD: socket error: %s\n", strerror(err));
 		return RESULT_RUN_ERR;
 	}
 
@@ -1990,7 +1992,7 @@ static int RunSysLogD(void)
 	if (result < 0)
 	{
 		err = errno;
-		ErrPrint("RunSysLogD: bind error: %s\n", strerror(err));
+		DbgPrint("RunSysLogD: bind error: %s\n", strerror(err));
 		return RESULT_RUN_ERR;
 	}
 
@@ -1998,20 +2000,21 @@ static int RunSysLogD(void)
 	if (result < 0)
 	{
 		err = errno;
-		ErrPrint("RunSysLogD: chmod error: %s\n", strerror(err));
+		DbgPrint("RunSysLogD: chmod error: %s\n", strerror(err));
 		return RESULT_RUN_ERR;
 	}
 
 	gioch = g_io_channel_unix_new(sock_fd);
 	if (gioch == NULL) {
-		ErrPrint("%s: channel error using fd: %d\n", __FUNCTION__, sock_fd);
+		DbgPrint("%s: channel error using fd: %d\n", __FUNCTION__, sock_fd);
 		return RESULT_RUN_ERR;
 	}
 	g_io_add_watch(gioch, G_IO_IN, HandleNewLog, NULL);
 	g_io_channel_unref(gioch);
 
 	/* Run the main loop */
-	SysLogMessage(LEVEL_DEBUG, "PROC_START", "");
+	//PmLogDebug(g_context, "PROC_START");
+	PmLogInfo(g_context, "TEST", 1, PMLOGKS("key","PROC_START"), "");
 
 	if (g_showStartInfo)
 	{
@@ -2030,7 +2033,7 @@ static int RunSysLogD(void)
 #endif
 
 	lsResult = register_luna_service(mainLoop);
-	SysLogMessage(LEVEL_DEBUG, "LSREGISTER_SERVICE", "{\"returnValue\":%s}", lsResult ? "true" : "false");
+	PmLogDebug(g_context, "LSRESITER_SERVICE result : %s", lsResult ? "true" : "false");
 
 	g_main_loop_run(mainLoop);
 	g_main_loop_unref(mainLoop);
@@ -2058,7 +2061,7 @@ static void InitSettings(void)
 	g_useFullTimeStamps = 0;
 	g_timeStampFracSecDigits = 0;
 
-	mystrcpy(g_pathLog, sizeof(g_pathLog), _PATH_LOG);
+	strncpy(g_pathLog, _PATH_LOG, sizeof(g_pathLog));
 
 	g_numOutputs = 0;
 	g_numContexts = 0;
@@ -2097,7 +2100,7 @@ static int ParseParams(int argc, char* argv[])
 	if (!g_option_context_parse (context, &argc, &argv, &error))
 	{
 		if (error) {
-			ErrPrint("%s: option parsing failed: %s\n", __FUNCTION__, error->message);
+			DbgPrint("%s: option parsing failed: %s\n", __FUNCTION__, error->message);
 			g_error_free(error);
 		}
         ret = RESULT_PARAM_ERR;
@@ -2140,6 +2143,8 @@ static void InitConfig(void)
 int main(int argc, char* argv[])
 {
 	int           result;
+
+	PmLogGetContext(PMLODAEMON_CONTEXT, &g_context);
 
 	InitSettings();
 

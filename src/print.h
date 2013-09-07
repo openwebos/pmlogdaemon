@@ -54,19 +54,4 @@
 	#define DbgPrint(...)
 #endif
 
-
-/* InfoPrint */
-#define InfoPrint(...) \
-	{														\
-		fprintf(stdout, COMPONENT_PREFIX __VA_ARGS__);		\
-	}
-
-
-/* ErrPrint */
-#define ErrPrint(...) \
-	{														\
-		fprintf(stderr, COMPONENT_PREFIX __VA_ARGS__);		\
-	}
-
-
-#endif
+#endif /* PMLOGDAEMON_PRINT_H */

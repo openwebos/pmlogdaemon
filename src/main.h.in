@@ -50,46 +50,11 @@
 #define LEVEL_INFO      (LOG_SYSLOG | LOG_INFO)
 #define LEVEL_DEBUG     (LOG_SYSLOG | LOG_DEBUG)
 
-/*
- * 'safe' string manipulation functions. Each function guarantees
- * the output buffer is not overflowed, and that it is null terminated
- * properly after (assuming it was beforehand).
- */
-
-/**
- * @brief mystrcpy
- *
- * Easy to use wrapper for strcpy to make it safe against buffer
- * overflows and to report any truncations.
- */
-void mystrcpy(char* dst, size_t dstSize, const char* src);
-
-
-/**
- * @brief mystrcat
- *
- * Easy to use wrapper for strcat to make it safe against buffer
- * overflows and to report any truncations.
- */
-void mystrcat(char* dst, size_t dstSize, const char* src);
-
-
-/**
- * @brief mysprintf
- *
- * Easy to use wrapper for sprintf to make it safe against buffer
- * overflows and to report any truncations.
- */
-void mysprintf(char* dst, size_t dstSize, const char* fmt, ...)
-	__attribute__((format(printf, 3, 4)));
-
-
 bool ParseInt(const char* valStr, int* nP);
 
 bool ParseLevel(const char* s, int* levelP);
 
 bool TrimSuffixCaseInsensitive(char* s, const char* suffix);
-
 
 /**
  * @brief ParseSize
