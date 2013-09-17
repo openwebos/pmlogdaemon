@@ -1435,6 +1435,7 @@ static void LogMessage(int pri, const char* msg)
 
 	if (HandleLogCommand(msgCurr))
 	{
+	        g_string_free(outMsg, true);
 		return;
 	}
 
@@ -1454,6 +1455,7 @@ static void LogMessage(int pri, const char* msg)
 		contextConfP = g_tree_lookup(g_contextConfs, kPmLogDefaultContextName);
 		if (contextConfP == NULL) {
 			PmLogDebug(g_context, "%s, default context not found!\n", __FUNCTION__);
+			g_string_free(outMsg, true);
 			return;
 		}
 	}
@@ -1993,6 +1995,7 @@ static int RunSysLogD(void)
 	{
 		err = errno;
 		DbgPrint("RunSysLogD: bind error: %s\n", strerror(err));
+		close(sock_fd);
 		return RESULT_RUN_ERR;
 	}
 
@@ -2001,12 +2004,14 @@ static int RunSysLogD(void)
 	{
 		err = errno;
 		DbgPrint("RunSysLogD: chmod error: %s\n", strerror(err));
+		close(sock_fd);
 		return RESULT_RUN_ERR;
 	}
 
 	gioch = g_io_channel_unix_new(sock_fd);
 	if (gioch == NULL) {
 		DbgPrint("%s: channel error using fd: %d\n", __FUNCTION__, sock_fd);
+		close(sock_fd);
 		return RESULT_RUN_ERR;
 	}
 	g_io_add_watch(gioch, G_IO_IN, HandleNewLog, NULL);

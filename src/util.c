@@ -102,6 +102,7 @@ bool LockProcess(const char* component)
 			DbgPrint("Failed to acquire lock (err %d, %s), exiting.\n",
 				err, strerror(err));
 		}
+		close(fd);
 		return false;
 	}
 
