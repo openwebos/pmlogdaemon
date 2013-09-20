@@ -27,13 +27,15 @@
 
 #include "ring.h"
 
-static void RBClear(PmLogRingBuffer_t* rb) {
-	if (rb) {
+static void RBClear(PmLogRingBuffer_t *rb)
+{
+	if (rb)
+	{
 		rb->isEmpty = true;
 		rb->nextWritePos = rb->buff;
 		g_assert(rb->buff);
 		g_assert(rb->bufferSize >= RBMinBufferSize);
-		memset(rb->buff,0, rb->bufferSize);
+		memset(rb->buff, 0, rb->bufferSize);
 	}
 }
 
@@ -48,33 +50,47 @@ static void RBClear(PmLogRingBuffer_t* rb) {
  *
  * @return
  */
-PmLogRingBuffer_t* RBNew(int bufferSize, int flushLevel) {
+PmLogRingBuffer_t *RBNew(int bufferSize, int flushLevel)
+{
 	DbgPrint("%s: called with bs %d fl %d\n", __FUNCTION__, bufferSize, flushLevel);
-	PmLogRingBuffer_t* ret = NULL;
-	if ((bufferSize <= 0) && (flushLevel <= 0)) {
+	PmLogRingBuffer_t *ret = NULL;
+
+	if ((bufferSize <= 0) && (flushLevel <= 0))
+	{
 		/* no need to create RB */
-	} else {
+	}
+	else
+	{
 		ret = g_new0(PmLogRingBuffer_t, 1);
-		if (ret) {
-			if (bufferSize < RBMinBufferSize) {
+
+		if (ret)
+		{
+			if (bufferSize < RBMinBufferSize)
+			{
 				ret->bufferSize = RBMinBufferSize;
-				DbgPrint("%s: bufferSize must be at least %d bytes.\n", __FUNCTION__, RBMinBufferSize);
-			} else {
+				DbgPrint("%s: bufferSize must be at least %d bytes.\n", __FUNCTION__,
+				         RBMinBufferSize);
+			}
+			else
+			{
 				ret->bufferSize = bufferSize;
 			}
+
 			ret->flushLevel = flushLevel;
 			ret->buff = NULL;
 			ret->isEmpty = true;
 		}
 	}
+
 	return ret;
 }
 
-static inline bool RBValidPos(PmLogRingBuffer_t* rb, const char* p) {
+static inline bool RBValidPos(PmLogRingBuffer_t *rb, const char *p)
+{
 	g_assert(rb);
-	g_assert(rb->bufferSize>0);
+	g_assert(rb->bufferSize > 0);
 	g_assert(rb->isEmpty || rb->buff);
-	const char * rbEnd = rb->buff + rb->bufferSize;
+	const char *rbEnd = rb->buff + rb->bufferSize;
 	return ((p < rbEnd) && (p >= rb->buff));
 }
 
@@ -87,30 +103,45 @@ static inline bool RBValidPos(PmLogRingBuffer_t* rb, const char* p) {
  *
  * @return true if the RB is valid
  */
-static bool RBValid(PmLogRingBuffer_t* rb) {
-	if (rb == NULL) {
+static bool RBValid(PmLogRingBuffer_t *rb)
+{
+	if (rb == NULL)
+	{
 		DbgPrint("%s: null ring buffer\n", __FUNCTION__);
 		return false;
 	}
-	if (rb->bufferSize < RBMinBufferSize) {
-		DbgPrint("%s: bufferSize must be at least %d bytes.\n", __FUNCTION__, RBMinBufferSize);
+
+	if (rb->bufferSize < RBMinBufferSize)
+	{
+		DbgPrint("%s: bufferSize must be at least %d bytes.\n", __FUNCTION__,
+		         RBMinBufferSize);
 		return false;
 	}
-	 if (!rb->isEmpty && !(rb->buff)) {
+
+	if (!rb->isEmpty && !(rb->buff))
+	{
 		DbgPrint("%s: buff is missing.\n", __FUNCTION__);
 		return false;
 	}
-	if (!RBValidPos(rb, rb->nextWritePos)) {
+
+	if (!RBValidPos(rb, rb->nextWritePos))
+	{
 		DbgPrint("%s: end nextWritePos out of range/n", __FUNCTION__);
 		return false;
 	}
+
 	return true;
 }
 
-static char * RBStep(const PmLogRingBuffer_t* rb, char* p) {
+static char *RBStep(const PmLogRingBuffer_t *rb, char *p)
+{
 	p++;
+
 	if (p >= (rb->buff + rb->bufferSize))
+	{
 		p = rb->buff;
+	}
+
 	return p;
 }
 
@@ -122,12 +153,14 @@ static char * RBStep(const PmLogRingBuffer_t* rb, char* p) {
  * @param rb pointer to the RB object
  *
  */
-void RBAllocBuff (PmLogRingBuffer_t* rb) {
-        /* Lazy allocation for buffer, only when actual write happens */
-        if(!rb->buff) {
-                rb->buff=(char*) g_malloc( rb->bufferSize );
-                RBClear(rb);
-        }
+void RBAllocBuff(PmLogRingBuffer_t *rb)
+{
+	/* Lazy allocation for buffer, only when actual write happens */
+	if (!rb->buff)
+	{
+		rb->buff = (char *) g_malloc(rb->bufferSize);
+		RBClear(rb);
+	}
 }
 
 /**
@@ -139,11 +172,14 @@ void RBAllocBuff (PmLogRingBuffer_t* rb) {
  * @param buffMsg  message to add to the RB
  * @param numBytes length of message
  */
-void RBWrite(PmLogRingBuffer_t* rb, const char *buffMsg, int numBytes) {
+void RBWrite(PmLogRingBuffer_t *rb, const char *buffMsg, int numBytes)
+{
 	DbgPrint("%s: called with buffMsg %s\n", __FUNCTION__, buffMsg);
 
-	if(!rb->buff)
+	if (!rb->buff)
+	{
 		RBAllocBuff(rb);
+	}
 
 	g_assert(RBValid(rb));
 	g_assert(numBytes <= (strlen(buffMsg) + 1));
@@ -155,12 +191,15 @@ void RBWrite(PmLogRingBuffer_t* rb, const char *buffMsg, int numBytes) {
 	const int tailLen = rbEnd - n + 1;
 
 	/* write, depending on wether we wrap or not */
-	if (numBytes > tailLen) {
+	if (numBytes > tailLen)
+	{
 		memcpy(n, buffMsg, tailLen);
 		int remain = numBytes - tailLen;
 		memcpy(b, buffMsg + tailLen, remain);
 		n = b + remain;
-	} else {
+	}
+	else
+	{
 		memcpy(n, buffMsg, numBytes);
 		n = RBStep(rb, n + (numBytes - 1));
 	}
@@ -181,34 +220,51 @@ void RBWrite(PmLogRingBuffer_t* rb, const char *buffMsg, int numBytes) {
  *
  * @return true if we flushed
  */
-bool RBFlush(PmLogRingBuffer_t* rb, RBTraversalFunc flushMsgFunc, gpointer data) {
-	DbgPrint("%s flush called on rb with bs %d and fl %d\n", __FUNCTION__, rb->bufferSize, rb->flushLevel);
+bool RBFlush(PmLogRingBuffer_t *rb, RBTraversalFunc flushMsgFunc,
+             gpointer data)
+{
+	DbgPrint("%s flush called on rb with bs %d and fl %d\n", __FUNCTION__,
+	         rb->bufferSize, rb->flushLevel);
 
-	if(!rb->buff)
+	if (!rb->buff)
+	{
 		RBAllocBuff(rb);
+	}
 
 	g_assert(RBValid(rb));
 
 	/* have RB, need to flush */
 	char msg[rb->bufferSize];
-	int j=0;
-	int i=0;
+	int j = 0;
+	int i = 0;
 	char *n = rb->nextWritePos;
 	int buffSize = rb->bufferSize;
-	for(i=0; i<buffSize; i++) {
+
+	for (i = 0; i < buffSize; i++)
+	{
 		msg[j] = *n;
-		n = RBStep(rb,n);
-		if (msg[j] == '\0') {
+		n = RBStep(rb, n);
+
+		if (msg[j] == '\0')
+		{
 			if (j != 0)
+			{
 				flushMsgFunc(msg, data);
+			}
+
 			j = 0;
-		} else {
+		}
+		else
+		{
 			j++;
 		}
 
 		if (n == rb->nextWritePos)
+		{
 			break;
+		}
 	}
+
 	RBClear(rb);
 	return true;
 }

@@ -41,17 +41,17 @@
 /* uncomment to debug. */
 //#define PMLOGDAEMON_DEBUG
 
-#define COMPONENT_PREFIX	"PmLogDaemon: "
+#define COMPONENT_PREFIX    "PmLogDaemon: "
 
 
 /* DbgPrint */
 #ifdef PMLOGDAEMON_DEBUG
-	#define DbgPrint(...) \
-	{														\
-		fprintf(stdout, COMPONENT_PREFIX __VA_ARGS__);		\
-	}
+#define DbgPrint(...) \
+ {                                                       \
+     fprintf(stdout, COMPONENT_PREFIX __VA_ARGS__);      \
+ }
 #else
-	#define DbgPrint(...)
+#define DbgPrint(...)
 #endif
 
 #endif /* PMLOGDAEMON_PRINT_H */

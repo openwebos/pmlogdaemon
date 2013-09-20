@@ -40,12 +40,12 @@
 
 typedef struct
 {
-	char	path[ PATH_MAX ];
-	int		fd;
+	char    path[ PATH_MAX ];
+	int     fd;
 }
 LockFile;
 
-static LockFile	g_processLock;
+static LockFile g_processLock;
 
 
 /**
@@ -57,17 +57,17 @@ static LockFile	g_processLock;
  *
  * @return true on success, false if failed.
  */
-bool LockProcess(const char* component)
+bool LockProcess(const char *component)
 {
-	const char* locksDirPath = "/tmp/run";
+	const char *locksDirPath = "/tmp/run";
 
-	LockFile*	lock;
-	pid_t		pid;
-	int			fd;
-	int			result;
-	char		pidStr[ 16 ];
-	int			pidStrLen;
-	int			err;
+	LockFile   *lock;
+	pid_t       pid;
+	int         fd;
+	int         result;
+	char        pidStr[ 16 ];
+	int         pidStrLen;
+	int         err;
 
 	lock = &g_processLock;
 	pid = getpid();
@@ -76,23 +76,26 @@ bool LockProcess(const char* component)
 	(void) mkdir(locksDirPath, 0777);
 
 	snprintf(lock->path, sizeof(lock->path), "%s/%s.pid", locksDirPath,
-		component);
+	         component);
 
 	/* open or create the lock file */
 	fd = open(lock->path, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
+
 	if (fd < 0)
 	{
 		err = errno;
 		DbgPrint("Failed to open lock file (err %d, %s), exiting.\n",
-			err, strerror(err));
+		         err, strerror(err));
 		return false;
 	}
 
 	/* use a POSIX advisory file lock as a mutex */
 	result = lockf(fd, F_TLOCK, 0);
+
 	if (result < 0)
 	{
 		err = errno;
+
 		if ((err == EDEADLK) || (err == EAGAIN))
 		{
 			DbgPrint("Failed to acquire lock, exiting.\n");
@@ -100,30 +103,33 @@ bool LockProcess(const char* component)
 		else
 		{
 			DbgPrint("Failed to acquire lock (err %d, %s), exiting.\n",
-				err, strerror(err));
+			         err, strerror(err));
 		}
+
 		close(fd);
 		return false;
 	}
 
 	/* remove the old pid number data */
 	result = ftruncate(fd, 0);
+
 	if (result < 0)
 	{
 		err = errno;
 		DbgPrint("Failed truncating lock file (err %d, %s).\n",
-			err, strerror(err));
+		         err, strerror(err));
 	}
 
 	/* write the pid to the file to aid debugging */
 	snprintf(pidStr, sizeof(pidStr), "%d\n", pid);
 	pidStrLen = (int) strlen(pidStr);
 	result = write(fd, pidStr, pidStrLen);
+
 	if (result < pidStrLen)
 	{
 		err = errno;
 		DbgPrint("Failed writing lock file (err %d, %s).\n",
-			err, strerror(err));
+		         err, strerror(err));
 	}
 
 	lock->fd = fd;
@@ -139,7 +145,7 @@ bool LockProcess(const char* component)
  */
 void UnlockProcess(void)
 {
-	LockFile*	lock;
+	LockFile   *lock;
 
 	lock = &g_processLock;
 	close(lock->fd);
@@ -155,20 +161,22 @@ void UnlockProcess(void)
  *
  * @return
  */
-bool TrimSuffixCaseInsensitive(char* s, const char* suffix)
+bool TrimSuffixCaseInsensitive(char *s, const char *suffix)
 {
-	size_t	sLen;
-	size_t	suffixLen;
-	char*	sSuffix;
+	size_t  sLen;
+	size_t  suffixLen;
+	char   *sSuffix;
 
 	sLen = strlen(s);
 	suffixLen = strlen(suffix);
+
 	if (sLen < suffixLen)
 	{
 		return false;
 	}
 
 	sSuffix = s + sLen - suffixLen;
+
 	if (strcasecmp(sSuffix, suffix) != 0)
 	{
 		return false;
@@ -187,14 +195,15 @@ bool TrimSuffixCaseInsensitive(char* s, const char* suffix)
  *
  * @return
  */
-bool ParseInt(const char* valStr, int* nP)
+bool ParseInt(const char *valStr, int *nP)
 {
-	long int	n;
-	char*		endptr;
+	long int    n;
+	char       *endptr;
 
 	endptr = NULL;
 	errno = 0;
 	n = strtol(valStr, &endptr, 0);
+
 	if ((endptr == valStr) || (*endptr != 0) || (errno != 0))
 	{
 		return false;
@@ -216,11 +225,12 @@ bool ParseInt(const char* valStr, int* nP)
  *
  * @return true if parsed OK, else false.
  */
-bool ParseLevel(const char* s, int* levelP)
+bool ParseLevel(const char *s, int *levelP)
 {
-	const int* nP;
+	const int *nP;
 
 	nP = PmLogStringToLevel(s);
+
 	if (nP != NULL)
 	{
 		*levelP = *nP;
@@ -242,23 +252,23 @@ bool ParseLevel(const char* s, int* levelP)
  *
  * @return
  */
-bool ParseSize(const char* valStr, int* nP)
+bool ParseSize(const char *valStr, int *nP)
 {
-	char	s[ 32 ];
-	int		multiplier;
+	char    s[ 32 ];
+	int     multiplier;
 
 	strncpy(s, valStr, sizeof(s));
 
 	multiplier = 1;
 
 	if (TrimSuffixCaseInsensitive(s, "K") ||
-		TrimSuffixCaseInsensitive(s, "KB"))
+	        TrimSuffixCaseInsensitive(s, "KB"))
 	{
 		multiplier = 1024;
 	}
 
 	if (TrimSuffixCaseInsensitive(s, "M") ||
-		TrimSuffixCaseInsensitive(s, "MB"))
+	        TrimSuffixCaseInsensitive(s, "MB"))
 	{
 		multiplier = 1024 * 1024;
 	}
@@ -289,29 +299,38 @@ bool ParseSize(const char* valStr, int* nP)
  *
  * @return
  */
-bool ParseKeyValue(const char* arg, char* keyBuff, size_t keyBuffSize,
-	char* valBuff, size_t valBuffSize)
+bool ParseKeyValue(const char *arg, char *keyBuff, size_t keyBuffSize,
+                   char *valBuff, size_t valBuffSize)
 {
-	const char* sepStr;
-	size_t		keyLen;
-	const char* valStr;
-	size_t		valLen;
+	const char *sepStr;
+	size_t      keyLen;
+	const char *valStr;
+	size_t      valLen;
 
 	sepStr = strchr(arg, '=');
+
 	if ((sepStr == NULL) || (sepStr <= arg))
+	{
 		return false;
+	}
 
 	keyLen = sepStr - arg;
+
 	if (keyLen >= keyBuffSize)
+	{
 		return false;
+	}
 
 	memcpy(keyBuff, arg, keyLen);
 	keyBuff[keyLen] = 0;
 
 	valStr = sepStr + 1;
 	valLen = strlen(valStr);
+
 	if (valLen >= valBuffSize)
+	{
 		return false;
+	}
 
 	memcpy(valBuff, valStr, valLen);
 	valBuff[valLen] = 0;

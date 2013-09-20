@@ -43,37 +43,37 @@
 /***********************************************************************
  * global configuration settings
  ***********************************************************************/
-int				g_numOutputs;
-PmLogFile_t		g_outputConfs[ PMLOG_MAX_NUM_OUTPUTS ];
+int             g_numOutputs;
+PmLogFile_t     g_outputConfs[ PMLOG_MAX_NUM_OUTPUTS ];
 
-int				g_numContexts;
-GTree 			*g_contextConfs = NULL;
+int             g_numContexts;
+GTree           *g_contextConfs = NULL;
 
 /***********************************************************************
  * OUTPUT section parsing
 
-	Example configuration section:
+    Example configuration section:
 
-		[OUTPUT=kernlog]
-		File=/var/log/kern.log
-		MaxSize=100K
-		Rotations=1
+        [OUTPUT=kernlog]
+        File=/var/log/kern.log
+        MaxSize=100K
+        Rotations=1
 
-	Required:
-	 	File=/var/log/kern.log
+    Required:
+        File=/var/log/kern.log
 
-	Optional:
-		MaxSize=100K
-	 	Rotations=1
+    Optional:
+        MaxSize=100K
+        Rotations=1
  ***********************************************************************/
 
 
 typedef struct
 {
-	char	name[ PMLOG_OUTPUT_MAX_NAME_LENGTH + 1 ];
-	char	File[ PATH_MAX ];
-	int	MaxSize;
-	int	Rotations;
+	char    name[ PMLOG_OUTPUT_MAX_NAME_LENGTH + 1 ];
+	char    File[ PATH_MAX ];
+	int MaxSize;
+	int Rotations;
 }
 PmLogParseOutput_t;
 
@@ -87,20 +87,21 @@ PmLogParseOutput_t;
  *
  * @return the index or -1 if not found.
  */
-static const PmLogFile_t* FindOutputByName(const char* outputName,
-	int* indexP)
+static const PmLogFile_t *FindOutputByName(const char *outputName,
+        int *indexP)
 {
 	DbgPrint("%s called with outputName=%s\n",
-			__FUNCTION__, outputName);
-	int							i;
-	const PmLogFile_t*	outputConfP;
+	         __FUNCTION__, outputName);
+	int                         i;
+	const PmLogFile_t  *outputConfP;
 
 	for (i = 0; i < g_numOutputs; i++)
 	{
 		outputConfP = &g_outputConfs[ i ];
+
 		if (outputConfP && outputConfP->outputName &&
-				(strcmp(outputConfP->outputName,
-					outputName) == 0))
+		        (strcmp(outputConfP->outputName,
+		                outputName) == 0))
 		{
 			if (indexP != NULL)
 			{
@@ -142,11 +143,11 @@ inline int ConfIntValueOrDefault(int n, int defaultVal)
  * @param terminators
  * @param terminatorP
  */
-static void GetTokenToSep(const char** sP, char* token, size_t tokenBuffSize,
-	const char* terminators, char* terminatorP)
+static void GetTokenToSep(const char **sP, char *token, size_t tokenBuffSize,
+                          const char *terminators, char *terminatorP)
 {
-	const char*		s;
-	size_t			tokenLen;
+	const char     *s;
+	size_t          tokenLen;
 
 	s = *sP;
 	tokenLen = 0;
@@ -162,15 +163,18 @@ static void GetTokenToSep(const char** sP, char* token, size_t tokenBuffSize,
 			token[ tokenLen ] = *s;
 			tokenLen++;
 		}
+
 		s++;
 	}
 
 	token[ tokenLen ] = 0;
 	*terminatorP = *s;
+
 	if (*s != 0)
 	{
 		s++;
 	}
+
 	*sP = s;
 }
 
@@ -183,11 +187,11 @@ static void GetTokenToSep(const char** sP, char* token, size_t tokenBuffSize,
  *
  * @return
  */
-static bool ParseOutputInit(const char* name, PmLogParseOutput_t* parseOutputP)
+static bool ParseOutputInit(const char *name, PmLogParseOutput_t *parseOutputP)
 {
 	memset(parseOutputP, 0, sizeof(PmLogParseOutput_t));
 	DbgPrint("%s called with name=%s\n",
-			__FUNCTION__, name);
+	         __FUNCTION__, name);
 
 	if (g_numOutputs == 0)
 	{
@@ -198,11 +202,12 @@ static bool ParseOutputInit(const char* name, PmLogParseOutput_t* parseOutputP)
 			return false;
 		}
 	}
+
 	/* need to check that name is valid length and char set */
 	strncpy(parseOutputP->name, name, sizeof(parseOutputP->name));
-	parseOutputP->File[ 0 ]		= 0;
-	parseOutputP->MaxSize		= CONF_INT_UNINIT_VALUE;
-	parseOutputP->Rotations		= CONF_INT_UNINIT_VALUE;
+	parseOutputP->File[ 0 ]     = 0;
+	parseOutputP->MaxSize       = CONF_INT_UNINIT_VALUE;
+	parseOutputP->Rotations     = CONF_INT_UNINIT_VALUE;
 
 	return true;
 }
@@ -221,34 +226,41 @@ static bool ParseOutputInit(const char* name, PmLogParseOutput_t* parseOutputP)
  *
  * @return true iff the OutputConf was added to the g_outputConfs array.
  */
-static bool MakeOutputConf(PmLogParseOutput_t* parseOutputP)
+static bool MakeOutputConf(PmLogParseOutput_t *parseOutputP)
 {
 	DbgPrint("%s called with po.name=%s\n",
-			__FUNCTION__, parseOutputP->name);
-	PmLogFile_t* outputConfP;
+	         __FUNCTION__, parseOutputP->name);
+	PmLogFile_t *outputConfP;
 	int i;
 
-	switch (parseOutputP->File[0]) {
+	switch (parseOutputP->File[0])
+	{
 		case 0:
 			DbgPrint("%s: File not specified\n", parseOutputP->name);
 			return false;
+
 		case '/':
 			break;
+
 		default:
 			DbgPrint("%s: Expected File full path value\n", parseOutputP->name);
 			return false;
 	}
 
 	/* Finding output */
-    outputConfP = (PmLogFile_t *) FindOutputByName(parseOutputP->name, &i);
+	outputConfP = (PmLogFile_t *) FindOutputByName(parseOutputP->name, &i);
 
 	/* Make new one */
-	if (NULL == outputConfP) {
-		DbgPrint("creating output %d for %s\n", g_numOutputs+1, parseOutputP->name);
-		if (g_numOutputs >= PMLOG_MAX_NUM_OUTPUTS) {
+	if (NULL == outputConfP)
+	{
+		DbgPrint("creating output %d for %s\n", g_numOutputs + 1, parseOutputP->name);
+
+		if (g_numOutputs >= PMLOG_MAX_NUM_OUTPUTS)
+		{
 			DbgPrint("%s: Too many output definitions\n", parseOutputP->name);
 			return false;
 		}
+
 		outputConfP = &g_outputConfs[g_numOutputs];
 		memset(outputConfP, 0, sizeof(PmLogFile_t));
 		outputConfP->outputName = g_strdup(parseOutputP->name);
@@ -256,8 +268,11 @@ static bool MakeOutputConf(PmLogParseOutput_t* parseOutputP)
 		outputConfP->maxSize = parseOutputP->MaxSize;
 		outputConfP->rotations = parseOutputP->Rotations;
 		g_numOutputs++;
-	} else {
-		DbgPrint("output %d for %s existing already\n", g_numOutputs+1, parseOutputP->name);
+	}
+	else
+	{
+		DbgPrint("output %d for %s existing already\n", g_numOutputs + 1,
+		         parseOutputP->name);
 		return true;
 	}
 
@@ -266,63 +281,80 @@ static bool MakeOutputConf(PmLogParseOutput_t* parseOutputP)
 	 * path if this context already existed
 	 */
 
-	if (parseOutputP->MaxSize == CONF_INT_UNINIT_VALUE) {
+	if (parseOutputP->MaxSize == CONF_INT_UNINIT_VALUE)
+	{
 		/* not set by conf file - set to default */
 		parseOutputP->MaxSize = PMLOG_DEFAULT_LOG_SIZE;
-	} else {
-		if (parseOutputP->MaxSize < PMLOG_MIN_LOG_SIZE) {
-			DbgPrint("%s: Log size must be > 4KB: setting to that minimum\n", parseOutputP->name);
+	}
+	else
+	{
+		if (parseOutputP->MaxSize < PMLOG_MIN_LOG_SIZE)
+		{
+			DbgPrint("%s: Log size must be > 4KB: setting to that minimum\n",
+			         parseOutputP->name);
 			parseOutputP->MaxSize = PMLOG_MIN_LOG_SIZE;
-		} else if (parseOutputP->MaxSize > PMLOG_MAX_LOG_SIZE) {
-			DbgPrint("%s: Log size must be < 64MB: setting to that maximum\n", parseOutputP->name);
+		}
+		else if (parseOutputP->MaxSize > PMLOG_MAX_LOG_SIZE)
+		{
+			DbgPrint("%s: Log size must be < 64MB: setting to that maximum\n",
+			         parseOutputP->name);
 			parseOutputP->MaxSize = PMLOG_MAX_LOG_SIZE;
 		}
 	}
 
-	if (parseOutputP->Rotations == CONF_INT_UNINIT_VALUE) {
+	if (parseOutputP->Rotations == CONF_INT_UNINIT_VALUE)
+	{
 		/* not set - make default */
 		outputConfP->rotations = PMLOG_DEFAULT_LOG_ROTATIONS;
-	} else {
-		if (parseOutputP->Rotations < PMLOG_MIN_NUM_ROTATIONS) {
-			DbgPrint("%s: Rotations must be >= %d: setting to that minimum\n", parseOutputP->name, PMLOG_MIN_NUM_ROTATIONS);
+	}
+	else
+	{
+		if (parseOutputP->Rotations < PMLOG_MIN_NUM_ROTATIONS)
+		{
+			DbgPrint("%s: Rotations must be >= %d: setting to that minimum\n",
+			         parseOutputP->name, PMLOG_MIN_NUM_ROTATIONS);
 			parseOutputP->Rotations = PMLOG_MIN_NUM_ROTATIONS;
-		} else if (parseOutputP->Rotations > PMLOG_MAX_NUM_ROTATIONS) {
-			DbgPrint("%s: Rotations must be between <= %d: setting to that maximum\n", parseOutputP->name, PMLOG_MAX_NUM_ROTATIONS);
+		}
+		else if (parseOutputP->Rotations > PMLOG_MAX_NUM_ROTATIONS)
+		{
+			DbgPrint("%s: Rotations must be between <= %d: setting to that maximum\n",
+			         parseOutputP->name, PMLOG_MAX_NUM_ROTATIONS);
 			parseOutputP->Rotations = PMLOG_MAX_NUM_ROTATIONS;
 		}
 	}
+
 	return true;
 }
 
 /***********************************************************************
  * OUTPUT section parsing
 
-	Example configuration section:
+    Example configuration section:
 
-		[CONTEXT=<global>]
-		Rule1=*.*,stdlog
-		Rule2=kern.*,kernlog
-		Rule3=*.err,errlog
+        [CONTEXT=<global>]
+        Rule1=*.*,stdlog
+        Rule2=kern.*,kernlog
+        Rule3=*.err,errlog
  ***********************************************************************/
 
 
 typedef struct
 {
 	/* -1 = all or specific value e.g. LOG_KERN */
-	int			facility;
+	int         facility;
 
 	/* -1 = all or specific value e.g. LOG_ERR */
-	int			level;
-	bool		levelInvert;
+	int         level;
+	bool        levelInvert;
 
 	/* empty = all or specific value */
-	char		program[ PMLOG_PROGRAM_MAX_NAME_LENGTH + 1 ];
+	char        program[ PMLOG_PROGRAM_MAX_NAME_LENGTH + 1 ];
 
 	/* index of output target */
-	int			outputIndex;
+	int         outputIndex;
 
 	/* false to include, true to omit */
-	bool		omitOutput;
+	bool        omitOutput;
 }
 PmLogParseRule_t;
 
@@ -348,11 +380,11 @@ PmLogParseContext_t;
  * @return true iff we were able to initialize the object
  */
 static bool ParseContextInit
-(const char* name, PmLogParseContext_t* parseContextP)
+(const char *name, PmLogParseContext_t *parseContextP)
 {
 	memset(parseContextP, 0, sizeof(PmLogParseContext_t));
 	DbgPrint("%s called with name=%s\n",
-			__FUNCTION__, name);
+	         __FUNCTION__, name);
 
 	if (g_numContexts == 0)
 	{
@@ -381,15 +413,15 @@ static bool ParseContextInit
  * @return true if parsed OK, else set error message.
  */
 static bool ParseContextData(
-		PmLogParseContext_t* parseContextP, const char* key,
-		const char* val)
+    PmLogParseContext_t *parseContextP, const char *key,
+    const char *val)
 {
-	PmLogParseRule_t*		parseRuleP;
-	const char*				s;
-	char					token[ 32 ];
-	char					sep;
+	PmLogParseRule_t       *parseRuleP;
+	const char             *s;
+	char                    token[ 32 ];
+	char                    sep;
 
-	DbgPrint("%s called with key=%s\n",__FUNCTION__, key);
+	DbgPrint("%s called with key=%s\n", __FUNCTION__, key);
 
 	parseRuleP = &parseContextP->rules[ parseContextP->numRules ];
 
@@ -401,6 +433,7 @@ static bool ParseContextData(
 
 	/* get facility */
 	GetTokenToSep(&s, token, sizeof(token), ".,", &sep);
+
 	if (!ParseRuleFacility(token, &parseRuleP->facility))
 	{
 		DbgPrint("Facility not parsed: '%s'\n", token);
@@ -411,6 +444,7 @@ static bool ParseContextData(
 	if (sep == '.')
 	{
 		parseRuleP->levelInvert = false;
+
 		if (*s == '!')
 		{
 			parseRuleP->levelInvert = true;
@@ -418,6 +452,7 @@ static bool ParseContextData(
 		}
 
 		GetTokenToSep(&s, token, sizeof(token), ".,", &sep);
+
 		if (!ParseRuleLevel(token, &parseRuleP->level))
 		{
 			DbgPrint("Level not parsed: '%s'\n", token);
@@ -449,13 +484,15 @@ static bool ParseContextData(
 	}
 
 	parseRuleP->omitOutput = false;
-	if ('-' == *s )
+
+	if ('-' == *s)
 	{
 		parseRuleP->omitOutput = true;
 		s++;
 	}
 
 	GetTokenToSep(&s, token, sizeof(token), ".,", &sep);
+
 	if (FindOutputByName(token, &parseRuleP->outputIndex) == NULL)
 	{
 		DbgPrint("Output not recognized: '%s'\n", token);
@@ -474,18 +511,22 @@ static bool ParseContextData(
 }
 
 
-static PmLogContextConf_t * CreateContext(const char* name) {
-	PmLogContextConf_t*		contextConfP;
-	gchar * gName = g_strdup(name);
-    contextConfP = g_new0(PmLogContextConf_t, 1);
-	if (contextConfP == NULL) {
+static PmLogContextConf_t *CreateContext(const char *name)
+{
+	PmLogContextConf_t     *contextConfP;
+	gchar *gName = g_strdup(name);
+	contextConfP = g_new0(PmLogContextConf_t, 1);
+
+	if (contextConfP == NULL)
+	{
 		DbgPrint("%s: Failed to malloc\n", __FUNCTION__);
 		abort();
 	}
 
 	// if SetDefaultConf() is called, ClearConf() will release g_contextConfs.
-	if (!g_contextConfs) {
-		g_contextConfs = g_tree_new_full( char_array_comp_func, NULL, g_free, free );
+	if (!g_contextConfs)
+	{
+		g_contextConfs = g_tree_new_full(char_array_comp_func, NULL, g_free, free);
 	}
 
 	contextConfP->contextName = gName;
@@ -507,44 +548,49 @@ static PmLogContextConf_t * CreateContext(const char* name) {
  *
  * @return true iff the ContextConf was added to the g_contextConfs array.
  */
-static bool MakeContextConf(PmLogParseContext_t* parseContextP)
+static bool MakeContextConf(PmLogParseContext_t *parseContextP)
 {
-	PmLogContextConf_t*		contextConfP;
-	int						i;
-	PmLogRule_t*			contextRuleP;
-	PmLogParseRule_t*		parseRuleP;
+	PmLogContextConf_t     *contextConfP;
+	int                     i;
+	PmLogRule_t            *contextRuleP;
+	PmLogParseRule_t       *parseRuleP;
 
 	DbgPrint("parseContext name : %s\n", parseContextP->name);
 	contextConfP = g_tree_lookup(g_contextConfs, parseContextP->name);
 
-	if (NULL == contextConfP) {
+	if (NULL == contextConfP)
+	{
 		contextConfP = CreateContext(parseContextP->name);
 	}
 
 	/* copy over the rules */
 	contextConfP->numRules = parseContextP->numRules;
+
 	for (i = 0; i < parseContextP->numRules; i++)
 	{
 		contextRuleP = &contextConfP->rules[ i ];
 		parseRuleP = &parseContextP->rules[ i ];
 
-		contextRuleP->facility		= parseRuleP->facility;
-		contextRuleP->level		= parseRuleP->level;
-		contextRuleP->levelInvert	= parseRuleP->levelInvert;
+		contextRuleP->facility      = parseRuleP->facility;
+		contextRuleP->level     = parseRuleP->level;
+		contextRuleP->levelInvert   = parseRuleP->levelInvert;
 
-		if ('\0' == parseRuleP->program[0]) {
+		if ('\0' == parseRuleP->program[0])
+		{
 			g_free(contextRuleP->program);
-            contextRuleP->program = NULL;
-        } else {
+			contextRuleP->program = NULL;
+		}
+		else
+		{
 			contextRuleP->program = g_strdup(parseRuleP->program);
-        }
+		}
 
-		contextRuleP->outputIndex	= parseRuleP->outputIndex;
-		contextRuleP->omitOutput	= parseRuleP->omitOutput;
+		contextRuleP->outputIndex   = parseRuleP->outputIndex;
+		contextRuleP->omitOutput    = parseRuleP->omitOutput;
 	}
 
 	/* copy buffer info */
-	contextConfP->rb = RBNew(parseContextP->bufferSize,parseContextP->flushLevel);
+	contextConfP->rb = RBNew(parseContextP->bufferSize, parseContextP->flushLevel);
 
 	return true;
 }
@@ -558,15 +604,19 @@ static bool MakeContextConf(PmLogParseContext_t* parseContextP)
 static void ClearConf(void)
 {
 	int i;
-	for (i=0; i<g_numOutputs; i++) {
+
+	for (i = 0; i < g_numOutputs; i++)
+	{
 		g_free(g_outputConfs[i].outputName);
-        g_outputConfs[i].outputName = NULL;
+		g_outputConfs[i].outputName = NULL;
 		g_free(g_outputConfs[i].path);
 		g_outputConfs[i].path = NULL;
 	}
 
 	if (g_contextConfs != NULL)
+	{
 		g_tree_destroy(g_contextConfs);
+	}
 
 	g_numOutputs = 0;
 	g_numContexts = 0;
@@ -582,7 +632,7 @@ static void ClearConf(void)
  * @param parsed the parsed object for whole the configuration file.
  * @param file_name file name for configuration file.
  */
-bool ParseJsonOutputs (const char* file_name)
+bool ParseJsonOutputs(const char *file_name)
 {
 	bool                 ret = false;
 	int                  outputsIter = 0;
@@ -591,24 +641,29 @@ bool ParseJsonOutputs (const char* file_name)
 	JSchemaInfo          schemainfo;
 	PmLogParseOutput_t   parseOutput;
 
-	memset (&parseOutput, 0x00, sizeof(parseOutput));
+	memset(&parseOutput, 0x00, sizeof(parseOutput));
 
 	DbgPrint("Current FileName : %s\n", file_name);
 
 	jschema_info_init(&schemainfo, jschema_all(), NULL, NULL);
 	parsed = jdom_parse_file(file_name, &schemainfo, DOMOPT_INPUT_NOCHANGE);
 
-	if (!jis_null(parsed)) {
+	if (!jis_null(parsed))
+	{
 		ret = jobject_get_exists(parsed, j_cstr_to_buffer("outputs"), &outputs_array);
-		if (ret) {
 
-			for (outputsIter = 0; outputsIter < jarray_size(outputs_array); outputsIter++) {
+		if (ret)
+		{
+
+			for (outputsIter = 0; outputsIter < jarray_size(outputs_array); outputsIter++)
+			{
 
 				jvalue_ref  outputs;
 
 				outputs = jarray_get(outputs_array, outputsIter);
 
-				if(!jis_null(outputs)) {
+				if (!jis_null(outputs))
+				{
 
 					jvalue_ref  value;
 					raw_buffer  name;
@@ -617,96 +672,142 @@ bool ParseJsonOutputs (const char* file_name)
 					int  max_size = CONF_INT_UNINIT_VALUE; // -1
 					int  rotations = CONF_INT_UNINIT_VALUE; // -1
 
-					memset (&name, 0x00, sizeof(name));
-					memset (&file, 0x00, sizeof(file));
+					memset(&name, 0x00, sizeof(name));
+					memset(&file, 0x00, sizeof(file));
 
 					ret = jobject_get_exists(outputs, j_cstr_to_buffer("name"), &value);
-					if (ret) { // found name
+
+					if (ret)   // found name
+					{
 						name = jstring_get(value);
-						if (name.m_len == 0 ) {
+
+						if (name.m_len == 0)
+						{
 							DbgPrint("jstring_get() failed for context %d in configuration file %s for name\n",
-									outputsIter, file_name);
+							         outputsIter, file_name);
 							ret = false;
-						} else {
+						}
+						else
+						{
 							ParseOutputInit(name.m_str, &parseOutput);
 						}
-					} else {
-						DbgPrint("'name' missing for context %d in configuration file %s\n", outputsIter, file_name);
+					}
+					else
+					{
+						DbgPrint("'name' missing for context %d in configuration file %s\n",
+						         outputsIter, file_name);
 						jstring_free_buffer(name);
 					}
 
-					if (!ret) {
+					if (!ret)
+					{
 						jstring_free_buffer(name);
 						continue; // We need to keep parsing for next context.
 					}
 
 					ret = jobject_get_exists(outputs, j_cstr_to_buffer("file"), &value);
-					if (ret) { // found file
+
+					if (ret)   // found file
+					{
 						file = jstring_get(value);
-						if (!file.m_str) {
+
+						if (!file.m_str)
+						{
 							DbgPrint("jstring_get() failed for context %d in configuration file %s for file\n",
-									outputsIter, file_name);
+							         outputsIter, file_name);
 							ret = false;
-						} else {
+						}
+						else
+						{
 							strncpy(parseOutput.File, file.m_str, sizeof(parseOutput.File) - 1);
 						}
-					} else {
-						DbgPrint("'file' missing for context %d in cofiguration file %s\n", outputsIter, file_name);
+					}
+					else
+					{
+						DbgPrint("'file' missing for context %d in cofiguration file %s\n", outputsIter,
+						         file_name);
 					}
 
-					if (!ret) { // name and file are mandatory field
+					if (!ret)   // name and file are mandatory field
+					{
 						jstring_free_buffer(name);
 						jstring_free_buffer(file);
 						continue; // We need to keep parsing for next context.
 					}
 
 					ret = jobject_get_exists(outputs, j_cstr_to_buffer("maxSize"), &value);
-					if (ret) { // found maxSize
-						if (jnumber_get_i32(value, &max_size) != CONV_OK) {
+
+					if (ret)   // found maxSize
+					{
+						if (jnumber_get_i32(value, &max_size) != CONV_OK)
+						{
 							DbgPrint("jstring_get() failed for context %d in configuration file %s for maxSize\n",
-									outputsIter, file_name);
-						} else {
+							         outputsIter, file_name);
+						}
+						else
+						{
 							max_size *= 1024; // Kilobytes
 						}
-					} else {
-						DbgPrint("'maxSize' missing for context %d in configuration file %s\n", outputsIter, file_name);
 					}
+					else
+					{
+						DbgPrint("'maxSize' missing for context %d in configuration file %s\n",
+						         outputsIter, file_name);
+					}
+
 					parseOutput.MaxSize = max_size;
 
 					ret = jobject_get_exists(outputs, j_cstr_to_buffer("rotations"), &value);
-					if (ret) { // found rotations
-						if (jnumber_get_i32(value, &rotations) != CONV_OK) {
+
+					if (ret)   // found rotations
+					{
+						if (jnumber_get_i32(value, &rotations) != CONV_OK)
+						{
 							DbgPrint("%s: context %d: file %s: jstring_get() failed "
-									"for name\n", __func__, outputsIter, file_name);
+							         "for name\n", __func__, outputsIter, file_name);
 						}
-					} else {
-						DbgPrint("'rotations' missing for context %d in configuration file %s\n", outputsIter, file_name);
 					}
+					else
+					{
+						DbgPrint("'rotations' missing for context %d in configuration file %s\n",
+						         outputsIter, file_name);
+					}
+
 					parseOutput.Rotations = rotations;
 
 					/* create new PmLogOuputConf_t object */
-					if (!MakeOutputConf(&parseOutput)) {
+					if (!MakeOutputConf(&parseOutput))
+					{
 						DbgPrint("MakeOutputConf() failed in %s\n", file_name);
 						ret = false;
 					}
+
 					jstring_free_buffer(name);
 					jstring_free_buffer(file);
 
-					if (!ret) {
+					if (!ret)
+					{
 						break;
 					}
 				} // if current entry in outputs array is valid
 			} // for loop for traversing outputs array
-		} else {
+		}
+		else
+		{
 			DbgPrint("invalid outputs in %s\n", file_name);
 		}
-	} else {
+	}
+	else
+	{
 		DbgPrint("unable to parse %s\n", file_name);
 	}
 
 	// If the parsing for default.conf is failed, then set as default
-	if ((!strcmp("default.conf", (const char*)basename((char*)file_name))) && !ret) {
-		DbgPrint("outputs parsing was failed in configuration file %s, setting as default\n", file_name);
+	if ((!strcmp("default.conf", (const char *)basename((char *)file_name))) &&
+	        !ret)
+	{
+		DbgPrint("outputs parsing was failed in configuration file %s, setting as default\n",
+		         file_name);
 		SetDefaultConf();
 	}
 
@@ -724,11 +825,11 @@ bool ParseJsonOutputs (const char* file_name)
  * @param parsed the parsed object for whole the configuration file.
  * @param file_name file name for configuration file.
  */
-bool ParseJsonContexts (const char* file_name)
+bool ParseJsonContexts(const char *file_name)
 {
 	bool                 ret = false, optional_ret = false;
 	int                  contextsIter = 0, rulesIter = 0;
-	jvalue_ref	         contexts_array;
+	jvalue_ref           contexts_array;
 	jvalue_ref           rule_array;
 	jvalue_ref           parsed;
 	JSchemaInfo          schemainfo;
@@ -737,10 +838,15 @@ bool ParseJsonContexts (const char* file_name)
 	jschema_info_init(&schemainfo, jschema_all(), NULL, NULL);
 	parsed = jdom_parse_file(file_name, &schemainfo, DOMOPT_INPUT_NOCHANGE);
 
-	if (!jis_null(parsed)) {
+	if (!jis_null(parsed))
+	{
 		ret = jobject_get_exists(parsed, j_cstr_to_buffer("contexts"), &contexts_array);
-		if (ret) { // found contexts
-			for (contextsIter = 0; contextsIter < jarray_size(contexts_array); contextsIter++) {
+
+		if (ret)   // found contexts
+		{
+			for (contextsIter = 0; contextsIter < jarray_size(contexts_array);
+			        contextsIter++)
+			{
 
 				jvalue_ref  context;
 				jvalue_ref  value;
@@ -748,83 +854,111 @@ bool ParseJsonContexts (const char* file_name)
 				int         buffer = 1;
 				raw_buffer  flush;
 
-				memset (&name, 0x00, sizeof(name));
-				memset (&flush, 0x00, sizeof(flush));
+				memset(&name, 0x00, sizeof(name));
+				memset(&flush, 0x00, sizeof(flush));
 
-				memset (&parseContext, 0x00, sizeof(parseContext));
+				memset(&parseContext, 0x00, sizeof(parseContext));
 
 				context = jarray_get(contexts_array, contextsIter);
 
-				if(!jis_null(context)) {
+				if (!jis_null(context))
+				{
 
 					ret = jobject_get_exists(context, j_cstr_to_buffer("name"), &value);
-					if (ret) { //found name
+
+					if (ret)   //found name
+					{
 						name = jstring_get(value);
-						if (!name.m_str) {
+
+						if (!name.m_str)
+						{
 							DbgPrint("jstring_get() failed for context %d in configuration file %s for name\n",
-									contextsIter, file_name);
+							         contextsIter, file_name);
 							ret = false;
-						} else {
+						}
+						else
+						{
 							ParseContextInit(name.m_str, &parseContext);
 						}
 
-					} else {
-						DbgPrint("'name' missing for context %d in configuration file %s\n", contextsIter, file_name);
+					}
+					else
+					{
+						DbgPrint("'name' missing for context %d in configuration file %s\n",
+						         contextsIter, file_name);
 					}
 
-					if (!ret) { // name is a mandatory field.
+					if (!ret)   // name is a mandatory field.
+					{
 						jstring_free_buffer(name);
 						continue; // We need to keep parsing for next context.
 					}
 
 					ret = jobject_get_exists(context, j_cstr_to_buffer("rules"), &rule_array);
-					if (ret) { // found rules
+
+					if (ret)   // found rules
+					{
 
 						char                 finalString[32] = {0};
 						char                 ruleName[32] = {0};
 
-						for (rulesIter = 0; rulesIter < jarray_size(rule_array); rulesIter++) {
+						for (rulesIter = 0; rulesIter < jarray_size(rule_array); rulesIter++)
+						{
 
 							raw_buffer  filter;
 							raw_buffer  output;
-							jvalue_ref 	rules;
+							jvalue_ref  rules;
 
-							memset (&filter, 0x00, sizeof(filter));
-							memset (&output, 0x00, sizeof(output));
+							memset(&filter, 0x00, sizeof(filter));
+							memset(&output, 0x00, sizeof(output));
 
 							rules = jarray_get(rule_array, rulesIter);
 							ret = jobject_get_exists(rules, j_cstr_to_buffer("filter"), &value);
-							if (ret) { // found filter
+
+							if (ret)   // found filter
+							{
 								filter = jstring_get(value);
-								if (!filter.m_str) {
+
+								if (!filter.m_str)
+								{
 									DbgPrint("jstring_get() failed for context %d in configuration file %s for filter\n",
-											rulesIter, file_name);
+									         rulesIter, file_name);
 									ret = false;
 								}
 							}
-							else {
+							else
+							{
 								DbgPrint("'filter' missing for context %d in configuration file %s\n",
-										rulesIter, file_name);
+								         rulesIter, file_name);
 							}
 
-							if (!ret) { // filter is a mandatory field
+							if (!ret)   // filter is a mandatory field
+							{
 								jstring_free_buffer(filter);
 								continue;
 							}
 
 							ret = jobject_get_exists(rules, j_cstr_to_buffer("output"), &value);
-							if (ret) { // found output
+
+							if (ret)   // found output
+							{
 								output = jstring_get(value);
-								if (!output.m_str) {
+
+								if (!output.m_str)
+								{
 									DbgPrint("jstring_get() failed for context %d in configuration file %s for output\n",
-											rulesIter, file_name);
+									         rulesIter, file_name);
 									ret = false;
 								}
-							} else {
-								DbgPrint("'output' missing for rule %d in cofiguration file %s\n", rulesIter, file_name);
+							}
+							else
+							{
+								DbgPrint("'output' missing for rule %d in cofiguration file %s\n", rulesIter,
+								         file_name);
 							}
 
-							if (!ret) { // output is a mandatory field
+							if (!ret)   // output is a mandatory field
+							{
 								jstring_free_buffer(filter);
 								jstring_free_buffer(output);
 								continue;
@@ -832,72 +966,103 @@ bool ParseJsonContexts (const char* file_name)
 
 							/* Make Rule's name and value. */
 							snprintf(ruleName, sizeof(ruleName), "Rule%d", rulesIter + 1);
-							if (filter.m_len > 0 && output.m_len > 0) {
+
+							if (filter.m_len > 0 && output.m_len > 0)
+							{
 								snprintf(finalString, sizeof(finalString), "%s,%s", filter.m_str, output.m_str);
 							}
 
-							if (!ParseContextData(&parseContext, ruleName, finalString)) {
-								DbgPrint("ParseContextData() failed %s in cofiguration file %s\n", ruleName, file_name);
+							if (!ParseContextData(&parseContext, ruleName, finalString))
+							{
+								DbgPrint("ParseContextData() failed %s in cofiguration file %s\n", ruleName,
+								         file_name);
 								ret = false;
 							}
 
 							jstring_free_buffer(filter);
 							jstring_free_buffer(output);
 
-							if (!ret) {
+							if (!ret)
+							{
 								break;
 							}
 						} // for loop for traversing rules array
-					} else {
+					}
+					else
+					{
 						DbgPrint("invalid rules in %s\n", file_name);
 					} // if rules is valid
 
-					optional_ret = jobject_get_exists(context, j_cstr_to_buffer("bufferSize"), &value);
-					if (optional_ret) { // found bufferSize
-						if (jnumber_get_i32(value, &buffer) != CONV_OK) {
+					optional_ret = jobject_get_exists(context, j_cstr_to_buffer("bufferSize"),
+					                                  &value);
+
+					if (optional_ret)   // found bufferSize
+					{
+						if (jnumber_get_i32(value, &buffer) != CONV_OK)
+						{
 							DbgPrint("jstring_get() failed for context %d in configuration file %s for bufferSize\n",
-									contextsIter, file_name);
-						} else {
+							         contextsIter, file_name);
+						}
+						else
+						{
 							parseContext.bufferSize = buffer * 1024;
 						}
 					} // no else, It is a optional field.
 
-					optional_ret = jobject_get_exists(context, j_cstr_to_buffer("flushLevel"), &value);
-					if (optional_ret) { //found flushLevel
+					optional_ret = jobject_get_exists(context, j_cstr_to_buffer("flushLevel"),
+					                                  &value);
+
+					if (optional_ret)   //found flushLevel
+					{
 						flush = jstring_get(value);
-						if (!flush.m_str) {
+
+						if (!flush.m_str)
+						{
 							DbgPrint("jstring_get() failed for context %d in configuration file %s for flushLevel\n",
-									contextsIter, file_name);
-						} else {
-							if (!ParseLevel(flush.m_str, &(parseContext.flushLevel))) {
+							         contextsIter, file_name);
+						}
+						else
+						{
+							if (!ParseLevel(flush.m_str, &(parseContext.flushLevel)))
+							{
 								DbgPrint("Couldn't parse flushLevel %d\n", contextsIter);
 							}
 						}
 					}
 
 					/* create new PmLogContextConf_t object */
-					if(ret) {
+					if (ret)
+					{
 						MakeContextConf(&parseContext);
 					}
 
 				} // if current entry in contexts array is valid
+
 				jstring_free_buffer(name);
 				jstring_free_buffer(flush);
 
-				if (!ret) {
+				if (!ret)
+				{
 					break;
 				}
 			} // for loop for traversing contexts array
-		} else {
+		}
+		else
+		{
 			DbgPrint("invalid contexts in %s\n", file_name);
 		}
-	} else {
+	}
+	else
+	{
 		DbgPrint("unable to parse %s\n", file_name);
 	}
 
 	// If the parsing for default.conf is failed, then set as default
-	if ((!strcmp("default.conf", (const char*) basename((char*)file_name))) && !ret) {
-		DbgPrint("contexts parsing was failed in configuration file %s, setting as default\n", file_name);
+	if ((!strcmp("default.conf", (const char *) basename((char *)file_name))) &&
+	        !ret)
+	{
+		DbgPrint("contexts parsing was failed in configuration file %s, setting as default\n",
+		         file_name);
 		SetDefaultConf();
 	}
 
@@ -905,7 +1070,7 @@ bool ParseJsonContexts (const char* file_name)
 
 	DbgPrint("\n");
 
-    return ret;
+	return ret;
 }
 
 /**
@@ -913,9 +1078,9 @@ bool ParseJsonContexts (const char* file_name)
  */
 void SetDefaultConf(void)
 {
-	PmLogFile_t			*outputConfP;
-	PmLogContextConf_t	*contextConfP;
-	PmLogRule_t			*contextRuleP;
+	PmLogFile_t         *outputConfP;
+	PmLogContextConf_t  *contextConfP;
+	PmLogRule_t         *contextRuleP;
 
 	DbgPrint("Setting default config\n");
 
@@ -923,28 +1088,31 @@ void SetDefaultConf(void)
 
 	outputConfP = &g_outputConfs[ 0 ];
 
-	outputConfP->outputName		= g_strdup(PMLOG_OUTPUT_STDLOG);
-	outputConfP->path			= g_strdup(DEFAULT_LOG_FILE_PATH);
-	outputConfP->maxSize		= PMLOG_DEFAULT_LOG_SIZE;
-	outputConfP->rotations		= PMLOG_DEFAULT_LOG_ROTATIONS;
+	outputConfP->outputName     = g_strdup(PMLOG_OUTPUT_STDLOG);
+	outputConfP->path           = g_strdup(DEFAULT_LOG_FILE_PATH);
+	outputConfP->maxSize        = PMLOG_DEFAULT_LOG_SIZE;
+	outputConfP->rotations      = PMLOG_DEFAULT_LOG_ROTATIONS;
 
 	g_numOutputs = 1;
 
-	if (g_contextConfs) {
+	if (g_contextConfs)
+	{
 		contextConfP = g_tree_lookup(g_contextConfs, kPmLogDefaultContextName);
-	} else {
+	}
+	else
+	{
 		contextConfP = CreateContext(kPmLogDefaultContextName);
 	}
 
 	contextRuleP = &contextConfP->rules[ 0 ];
 
-	contextRuleP->facility		= -1;
-	contextRuleP->level			= -1;
-	contextRuleP->levelInvert	= false;
+	contextRuleP->facility      = -1;
+	contextRuleP->level         = -1;
+	contextRuleP->levelInvert   = false;
 	g_free(contextRuleP->program);
-    contextRuleP->program = NULL;
-	contextRuleP->outputIndex	= 0;
-	contextRuleP->omitOutput	= false;
+	contextRuleP->program = NULL;
+	contextRuleP->outputIndex   = 0;
+	contextRuleP->omitOutput    = false;
 
 	contextConfP->numRules = 1;
 }

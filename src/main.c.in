@@ -76,10 +76,10 @@
  ***********************************************************************/
 enum
 {
-	RESULT_OK,
-	RESULT_RUN_ERR,
-	RESULT_PARAM_ERR,
-	RESULT_HELP
+    RESULT_OK,
+    RESULT_RUN_ERR,
+    RESULT_PARAM_ERR,
+    RESULT_HELP
 };
 
 
@@ -88,7 +88,7 @@ enum
  ***********************************************************************/
 
 /* maximum line length that can be handled, per RFC 3164 */
-#define	MAXLINE			1024
+#define MAXLINE         1024
 
 #define PMLODAEMON_CONTEXT "pmlogdaemon"
 
@@ -98,31 +98,31 @@ enum
  * facility (LOG_KERN) as needed.  To support passing that through we
  * use a pseudo-facility value and re-map it back.
  */
-#define PMLOGDAEMON_LOG_KERN	(LOG_NFACILITIES<<3)
+#define PMLOGDAEMON_LOG_KERN    (LOG_NFACILITIES<<3)
 
 #define PMLOGDAEMON_FILE_ROTATION_PATTERN "%s.%d.gz"
 
 /***********************************************************************
  * globals settings
  ***********************************************************************/
-static int			g_showStartInfo;
+static int          g_showStartInfo;
 
 /* 0 for regular timestamps, 1 for full = RFC 3339 format timestamps */
-static int			g_useFullTimeStamps;
+static int          g_useFullTimeStamps;
 
 /* 0 for no fractional seconds, 1 for 1 digit precision, etc. */
-static int			g_timeStampFracSecDigits;
+static int          g_timeStampFracSecDigits;
 
 /* 0 for no monotonic seconds, 1 to include monotonic seconds */
-static int			g_timeStampMonotonic;
+static int          g_timeStampMonotonic;
 
 #ifdef PMLOGDAEMON_FEATURE_REMOTE_LOG
 /* UDP socket port number, i.e. 514 */
-static int			g_port;
+static int          g_port;
 #endif
 
 /* path to the unix domain socket = _PATH_LOG = /dev/log */
-static char			g_pathLog[ PATH_MAX ];
+static char         g_pathLog[ PATH_MAX ];
 
 /***********************************************************************
  * globals
@@ -135,9 +135,9 @@ static bool         g_captureJSExceptions;
 PmLogContext g_context;
 
 /**********************************************************************
- *	Function declarations
+ *  Function declarations
  **********************************************************************/
-static int ScanRotatedFile(const char* filename);
+static int ScanRotatedFile(const char *filename);
 
 static LSHandle *g_lsServiceHandle = NULL;
 static LSError g_lsError;
@@ -152,14 +152,14 @@ static LSError g_lsError;
  * @param fmt the format string
  * @param ... optional additional arguments
  */
-static void _SysLogMessage(const int level, const char* fmt, ...)
-	 __attribute__((format(printf, 2, 3)));
+static void _SysLogMessage(const int level, const char *fmt, ...)
+__attribute__((format(printf, 2, 3)));
 
 /* Insert process name, context name, and message ID */
 #define SysLogMessage(level, msgID, ...) \
-		_SysLogMessage(level, PMLOGD_NAME ":" " " PMLOG_IDENTIFIER " [] " PMLOGD_CONTEXT " " msgID " " __VA_ARGS__);
+        _SysLogMessage(level, PMLOGD_NAME ":" " " PMLOG_IDENTIFIER " [] " PMLOGD_CONTEXT " " msgID " " __VA_ARGS__);
 
-#define ROTATED_LOG_FILE_PATH			"@WEBOS_INSTALL_LOGDIR@/messages.0"
+#define ROTATED_LOG_FILE_PATH           "@WEBOS_INSTALL_LOGDIR@/messages.0"
 
 /**
  * @brief ParseRuleFacility
@@ -171,9 +171,9 @@ static void _SysLogMessage(const int level, const char* fmt, ...)
  *
  * @return true if parsed OK, else false.
  */
-bool ParseRuleFacility(const char* facilityStr, int* facilityP)
+bool ParseRuleFacility(const char *facilityStr, int *facilityP)
 {
-	const int*	nP;
+	const int  *nP;
 
 	if (strcmp(facilityStr, "*") == 0)
 	{
@@ -182,6 +182,7 @@ bool ParseRuleFacility(const char* facilityStr, int* facilityP)
 	}
 
 	nP = PmLogStringToFacility(facilityStr);
+
 	if (nP != NULL)
 	{
 		*facilityP = *nP;
@@ -203,9 +204,9 @@ bool ParseRuleFacility(const char* facilityStr, int* facilityP)
  *
  * @return true if parsed OK, else false.
  */
-bool ParseRuleLevel(const char* levelStr, int* levelP)
+bool ParseRuleLevel(const char *levelStr, int *levelP)
 {
-	const int*	nP;
+	const int  *nP;
 
 	if (strcmp(levelStr, "*") == 0)
 	{
@@ -214,6 +215,7 @@ bool ParseRuleLevel(const char* levelStr, int* levelP)
 	}
 
 	nP = PmLogStringToLevel(levelStr);
+
 	if (nP != NULL)
 	{
 		*levelP = *nP;
@@ -232,9 +234,9 @@ bool ParseRuleLevel(const char* levelStr, int* levelP)
  *
  * @return NULL if not recognized.
  */
-static const char* GetRuleFacilityStr(int fac)
+static const char *GetRuleFacilityStr(int fac)
 {
-	const char*	s;
+	const char *s;
 
 	if (fac == -1)
 	{
@@ -255,9 +257,9 @@ static const char* GetRuleFacilityStr(int fac)
  *
  * @return NULL if not recognized.
  */
-static const char* GetRuleLevelStr(int level)
+static const char *GetRuleLevelStr(int level)
 {
-	const char*	s;
+	const char *s;
 
 	if (level == -1)
 	{
@@ -276,10 +278,10 @@ static const char* GetRuleLevelStr(int level)
  * @param str
  * @param size
  */
-static void FormatPri(int pri, char* str, size_t size)
+static void FormatPri(int pri, char *str, size_t size)
 {
-	const char* facStr;
-	const char* lvlStr;
+	const char *facStr;
+	const char *lvlStr;
 
 	facStr = GetRuleFacilityStr(pri & LOG_FACMASK);
 	lvlStr = GetRuleLevelStr(pri & LOG_PRIMASK);
@@ -303,18 +305,23 @@ static void FormatPri(int pri, char* str, size_t size)
  *
  * @return
  */
-static int myremove(const char* filename) {
+static int myremove(const char *filename)
+{
 	int result;
 	int err = 0;
 	result = remove(filename);
+
 	if (result < 0)
 	{
 		err = errno;
+
 		if (errno != ENOENT)
 		{
-			PmLogError(g_context, "REMOVE_FILE", 1, PMLOGKS("ErrorText", strerror(err)), "");
+			PmLogError(g_context, "REMOVE_FILE", 1, PMLOGKS("ErrorText", strerror(err)),
+			           "");
 		}
 	}
+
 	return err;
 }
 
@@ -333,64 +340,92 @@ static int myremove(const char* filename) {
  */
 static int CompressFile(const char *infilename)
 {
-	char * outfilename = g_strconcat(infilename,".gz",NULL);
+	char *outfilename = g_strconcat(infilename, ".gz", NULL);
 	char inbuffer[128];
 	int num_read = 0;
 	int num_written = 0;
 	unsigned long total_read = 0;
 	unsigned long total_written = 0;
 	int err = 0;
-	gzFile * outfile = NULL;
-	FILE * infile = NULL;
-	if (!outfilename) {
+	gzFile *outfile = NULL;
+	FILE *infile = NULL;
+
+	if (!outfilename)
+	{
 		err = EIO;
-		PmLogError(g_context, "COMPRESS_FILE", 1, PMLOGKS("ErrorText", strerror(err)), "Failed to construct compressed filename.");
+		PmLogError(g_context, "COMPRESS_FILE", 1, PMLOGKS("ErrorText", strerror(err)),
+		           "Failed to construct compressed filename.");
 		goto Error;
 	}
+
 	infile = fopen(infilename, "rb");
-	if (!infile) {
+
+	if (!infile)
+	{
 		err = EIO;
-		PmLogError(g_context, "COMPRESS_FILE", 1, PMLOGKS("ErrorText", strerror(err)), "Failed to open input file");
+		PmLogError(g_context, "COMPRESS_FILE", 1, PMLOGKS("ErrorText", strerror(err)),
+		           "Failed to open input file");
 		goto Error;
 	}
+
 	outfile = gzopen(outfilename, "wb");
-	if (outfile == Z_NULL ) {
+
+	if (outfile == Z_NULL)
+	{
 		err = EIO;
-		PmLogError(g_context, "COMPRESS_FILE", 1, PMLOGKS("ErrorText", strerror(err)), "Failed to create compressed file");
+		PmLogError(g_context, "COMPRESS_FILE", 1, PMLOGKS("ErrorText", strerror(err)),
+		           "Failed to create compressed file");
 		outfile = NULL;
 		goto Error;
 	}
 
-	while ((num_read = fread(inbuffer, 1, sizeof(inbuffer), infile)) > 0) {
+	while ((num_read = fread(inbuffer, 1, sizeof(inbuffer), infile)) > 0)
+	{
 		total_read += num_read;
 		num_written = gzwrite(outfile, inbuffer, num_read);
-		if (num_written != num_read) {
-			PmLogError(g_context, "COMPRESS_FILE", 1, PMLOGKS("ErrorText", gzerror(outfile, &err)), "gzwrite error");
+
+		if (num_written != num_read)
+		{
+			PmLogError(g_context, "COMPRESS_FILE", 1, PMLOGKS("ErrorText", gzerror(outfile,
+			           &err)), "gzwrite error");
 			goto Error;
 		}
+
 		total_written += num_written;
 	}
+
 	/* delete old file */
 	err = myremove(infilename);
 
-	PmLogDebug(g_context, "CompressFile: Read %lu bytes, Wrote %lu bytes, Compression factor %4.2f%%\n",
-			total_read, total_written,
-			(1.0-total_written*1.0/total_read)*100.0);
+	PmLogDebug(g_context,
+	           "CompressFile: Read %lu bytes, Wrote %lu bytes, Compression factor %4.2f%%\n",
+	           total_read, total_written,
+	           (1.0 - total_written * 1.0 / total_read) * 100.0);
 
 Error:
+
 	if (outfilename)
+	{
 		free(outfilename);
+	}
+
 	if (infile)
+	{
 		fclose(infile);
+	}
+
 	if (outfile)
+	{
 		gzclose(outfile);
+	}
 
 	return err;
 }
 
 bool handle_makelogreport_callback(LSHandle *sh, LSMessage *reply, void *ctx)
 {
-	SysLogMessage(LEVEL_INFO, "MAKELOGREPORT", "%s", j_cstr_to_buffer(LSMessageGetPayload(reply)));
+	SysLogMessage(LEVEL_INFO, "MAKELOGREPORT", "%s",
+	              j_cstr_to_buffer(LSMessageGetPayload(reply)));
 
 	return true;
 }
@@ -405,19 +440,20 @@ bool handle_makelogreport_callback(LSHandle *sh, LSMessage *reply, void *ctx)
  *
  * @return 1 if the rotation was performed, else 0.
  */
-static int DoRotateLogFile(PmLogFile_t* logFileP)
+static int DoRotateLogFile(PmLogFile_t *logFileP)
 {
-	int				result;
-	int				err;
-	char			oldPath[ PATH_MAX ];
-	char			newPath[ PATH_MAX ];
-	char			logReportCmd[PATH_MAX + 128] = {0,};
-	int				i;
+	int             result;
+	int             err;
+	char            oldPath[ PATH_MAX ];
+	char            newPath[ PATH_MAX ];
+	char            logReportCmd[PATH_MAX + 128] = {0,};
+	int             i;
 
 	if (logFileP->rotations <= 0)
 	{
 		/* we require rotations >= 1 */
-		PmLogError(g_context, "ROTATE_LOG", 1, PMLOGKFV("ROTATION", "%d", logFileP->rotations), "invalid number of rotations");
+		PmLogError(g_context, "ROTATE_LOG", 1, PMLOGKFV("ROTATION", "%d",
+		           logFileP->rotations), "invalid number of rotations");
 		return 0;
 	}
 
@@ -427,13 +463,17 @@ static int DoRotateLogFile(PmLogFile_t* logFileP)
 	   ... */
 	for (i = logFileP->rotations - 1; i > 0; i--)
 	{
-		snprintf(oldPath, sizeof(oldPath), PMLOGDAEMON_FILE_ROTATION_PATTERN, logFileP->path, i - 1);
-		snprintf(newPath, sizeof(newPath), PMLOGDAEMON_FILE_ROTATION_PATTERN, logFileP->path, i);
+		snprintf(oldPath, sizeof(oldPath), PMLOGDAEMON_FILE_ROTATION_PATTERN,
+		         logFileP->path, i - 1);
+		snprintf(newPath, sizeof(newPath), PMLOGDAEMON_FILE_ROTATION_PATTERN,
+		         logFileP->path, i);
 		/* note that rename will replace the old file if present */
 		result = rename(oldPath, newPath);
+
 		if (result < 0)
 		{
 			err = errno;
+
 			if (err != ENOENT)
 			{
 				PmLogDebug(g_context, "RotateLogFile: rename error: %s\n", strerror(err));
@@ -444,13 +484,15 @@ static int DoRotateLogFile(PmLogFile_t* logFileP)
 	/* the assumption is that the current file is flushed by the rename */
 	snprintf(newPath, sizeof(newPath), "%s.%d", logFileP->path, 0);
 	result = rename(logFileP->path, newPath);
+
 	if (result < 0)
 	{
 		err = errno;
 		PmLogDebug(g_context, "RotateLogFile: rename error: %s\n", strerror(err));
 	}
 
-	if (g_captureJSExceptions) {
+	if (g_captureJSExceptions)
+	{
 		ScanRotatedFile(newPath);
 	}
 
@@ -461,62 +503,79 @@ static int DoRotateLogFile(PmLogFile_t* logFileP)
 	LSError lserror;
 	LSErrorInit(&lserror);
 
-	if (strncmp(newPath, ROTATED_LOG_FILE_PATH, strlen(ROTATED_LOG_FILE_PATH)) == 0) {
+	if (strncmp(newPath, ROTATED_LOG_FILE_PATH,
+	            strlen(ROTATED_LOG_FILE_PATH)) == 0)
+	{
 
-		snprintf(logReportCmd, sizeof(logReportCmd), "{\"filepath\":\"%s.gz\"}", newPath);
+		snprintf(logReportCmd, sizeof(logReportCmd), "{\"filepath\":\"%s.gz\"}",
+		         newPath);
 
 		if (!LSCall(g_lsServiceHandle,
-                    "luna://com.webos.rdxd/makelogreport",
-                    logReportCmd,
-                    handle_makelogreport_callback,
-                    NULL,
-                    NULL,
-                    &lserror)) {
-			SysLogMessage(LEVEL_ERROR, "LSCall_ERROR", "{\"errorText\":\"%s\"}", lserror.message);
+		            "luna://com.webos.rdxd/makelogreport",
+		            logReportCmd,
+		            handle_makelogreport_callback,
+		            NULL,
+		            NULL,
+		            &lserror))
+		{
+			SysLogMessage(LEVEL_ERROR, "LSCall_ERROR", "{\"errorText\":\"%s\"}",
+			              lserror.message);
 		}
 	}
+
 	LSErrorFree(&lserror);
 
 	return 1;
 }
 
-#define LINE_BUFFER_SIZE				1024
-#define COMPONENT_BUFFER_SIZE			128
+#define LINE_BUFFER_SIZE                1024
+#define COMPONENT_BUFFER_SIZE           128
 static int
-ScanRotatedFile(const char* filename) {
-	FILE* f = NULL;
+ScanRotatedFile(const char *filename)
+{
+	FILE *f = NULL;
 	char line_buffer[LINE_BUFFER_SIZE];
 	char component[COMPONENT_BUFFER_SIZE];
-	char* backtrace = NULL;
-	char* temp = NULL;
+	char *backtrace = NULL;
+	char *temp = NULL;
 	int comp_len = 0;
 
 	/* check if this is /var/log/messages.0 */
-	if (strcmp(filename, ROTATED_LOG_FILE_PATH) != 0) {
+	if (strcmp(filename, ROTATED_LOG_FILE_PATH) != 0)
+	{
 		return 0;
 	}
 
 	f = fopen(filename, "r");
-	if (f == NULL) {
+
+	if (f == NULL)
+	{
 		return -1;
 	}
 
-	while (1) {
+	while (1)
+	{
 		memset(line_buffer, 0, LINE_BUFFER_SIZE);
 		fgets(line_buffer, LINE_BUFFER_SIZE, f);
-		if (ferror(f) || (feof(f))) {
+
+		if (ferror(f) || (feof(f)))
+		{
 			break;
 		}
 
-		backtrace = strstr (line_buffer, "EXCEPTION");
-	    if (backtrace != NULL) {
-	    	memset(component, 0, COMPONENT_BUFFER_SIZE);
-	    	temp = strstr(line_buffer, "LunaSysMgrJS");
-			if (temp == NULL) {
+		backtrace = strstr(line_buffer, "EXCEPTION");
+
+		if (backtrace != NULL)
+		{
+			memset(component, 0, COMPONENT_BUFFER_SIZE);
+			temp = strstr(line_buffer, "LunaSysMgrJS");
+
+			if (temp == NULL)
+			{
 				continue;
 			}
 
-			temp += 15;	/* get to the right place for the component name */
+			temp += 15; /* get to the right place for the component name */
 			comp_len = (int)(strchr(temp, ':') - temp);
 			strncpy(component, temp, comp_len);
 			component[comp_len] = '\0';
@@ -525,11 +584,13 @@ ScanRotatedFile(const char* filename) {
 			rdx_report_metadata_set_component(md, component);
 			rdx_report_metadata_set_cause(md, "JavaScript Exception");
 			rdx_report_metadata_set_detail(md, "Exception");
-			rdx_report_metadata_set_payload_filename(md, "exception.txt"); /* defaults to "payload" */
+			rdx_report_metadata_set_payload_filename(md,
+			        "exception.txt"); /* defaults to "payload" */
 			rdx_make_report(md, backtrace);
 			destroy_rdx_report_metadata(md);
 		}
 	}
+
 	fclose(f);
 	return 1;
 }
@@ -546,26 +607,28 @@ ScanRotatedFile(const char* filename) {
  *
  * @return 1 if the rotation was performed, else 0.
  */
-static int RotateLogFile(PmLogFile_t* logFileP, int fd, int numToWrite)
+static int RotateLogFile(PmLogFile_t *logFileP, int fd, int numToWrite)
 {
-	int				result;
-	int				err;
-	struct stat		fdStat;
-	int				fileLen;
+	int             result;
+	int             err;
+	struct stat     fdStat;
+	int             fileLen;
 
 	if (logFileP->rotations <= 0)
 	{
 		/* we require rotations >= 1 */
-		DbgPrint("RotateLogFile: invalid number of rotations: %d\n", logFileP->rotations);
+		DbgPrint("RotateLogFile: invalid number of rotations: %d\n",
+		         logFileP->rotations);
 		return 0;
 	}
 
 	result = fstat(fd, &fdStat);
+
 	if (result != 0)
 	{
 		err = errno;
 		DbgPrint("RotateLogFile: fstat error: %s\n",
-			strerror(err));
+		         strerror(err));
 		return 0;
 	}
 
@@ -576,6 +639,7 @@ static int RotateLogFile(PmLogFile_t* logFileP, int fd, int numToWrite)
 	}
 
 	fileLen = (int) fdStat.st_size;
+
 	if (fileLen + numToWrite <= logFileP->maxSize)
 	{
 		return 0;
@@ -595,20 +659,20 @@ static int RotateLogFile(PmLogFile_t* logFileP, int fd, int numToWrite)
  *
  * @return 0 on success else err code.
  */
-static int WriteToLogFile(PmLogFile_t* logFileP, const char* p, int n)
+static int WriteToLogFile(PmLogFile_t *logFileP, const char *p, int n)
 {
-	int				fd;
-	int				err;
-	struct flock	fl;
-	int				result;
-	int				nWritten;
-	int				writeErr;
-	int				didRotate;
+	int             fd;
+	int             err;
+	struct flock    fl;
+	int             result;
+	int             nWritten;
+	int             writeErr;
+	int             didRotate;
 
 	if ((p == NULL) || (n <= 0))
 	{
 		/* shouldn't happen, but check anyway */
-		PmLogDebug(g_context, "%s: invalid parameter",__FUNCTION__);
+		PmLogDebug(g_context, "%s: invalid parameter", __FUNCTION__);
 		return 0;
 	}
 
@@ -617,11 +681,13 @@ static int WriteToLogFile(PmLogFile_t* logFileP, const char* p, int n)
 Retry:
 
 	fd = open(logFileP->path, O_WRONLY | O_CREAT | O_NOCTTY |
-		O_APPEND | O_NONBLOCK, 0644);
+	          O_APPEND | O_NONBLOCK, 0644);
+
 	if (fd < 0)
 	{
 		err = errno;
-		PmLogError(g_context, "OPEN_FILE", 1, PMLOGKS("ErrorText", strerror(err)), "open error");
+		PmLogError(g_context, "OPEN_FILE", 1, PMLOGKS("ErrorText", strerror(err)),
+		           "open error");
 		return err;
 	}
 
@@ -629,10 +695,12 @@ Retry:
 	memset(&fl, 0, sizeof(fl));
 	fl.l_type = F_WRLCK;
 	result = fcntl(fd, F_SETLKW, &fl);
+
 	if (result != 0)
 	{
 		err = errno;
-		PmLogError(g_context, "GET_FILE_ADVISORY", 1, PMLOGKS("ErrorText", strerror(err)), "fcntl F_SETLKW F_WRLCK error");
+		PmLogError(g_context, "GET_FILE_ADVISORY", 1, PMLOGKS("ErrorText",
+		           strerror(err)), "fcntl F_SETLKW F_WRLCK error");
 	}
 
 	if (didRotate)
@@ -645,18 +713,26 @@ Retry:
 	}
 
 	writeErr = 0;
+
 	if (!didRotate)
 	{
 		errno = 0;
 		nWritten = write(fd, p, n);
+
 		if (nWritten != n)
 		{
 			err = errno;
-			if (err) {
-				PmLogError(g_context, "WRITE_FILE", 1, PMLOGKS("ErrorText", strerror(err)), "write error");
+
+			if (err)
+			{
+				PmLogError(g_context, "WRITE_FILE", 1, PMLOGKS("ErrorText", strerror(err)),
+				           "write error");
 				writeErr = err;
-			} else {
-				PmLogError(g_context, "WRITE_FILE", 1, PMLOGKS("LogFilePath", logFileP->path), "write did not complete");
+			}
+			else
+			{
+				PmLogError(g_context, "WRITE_FILE", 1, PMLOGKS("LogFilePath", logFileP->path),
+				           "write did not complete");
 			}
 		}
 	}
@@ -665,10 +741,12 @@ Retry:
 	memset(&fl, 0, sizeof(fl));
 	fl.l_type = F_UNLCK;
 	result = fcntl(fd, F_SETLKW, &fl);
+
 	if (result != 0)
 	{
 		err = errno;
-		PmLogError(g_context, "WRITE_FILE", 1, PMLOGKS("ErrorText", strerror(err)), "fcntl F_SETLKW F_UNLCK error");
+		PmLogError(g_context, "WRITE_FILE", 1, PMLOGKS("ErrorText", strerror(err)),
+		           "fcntl F_SETLKW F_UNLCK error");
 	}
 
 	/* close the file, which will sync (flush) it */
@@ -690,13 +768,14 @@ Retry:
  *
  * @return 0 on success else err code.
  */
-static int ForceRotateLogFile(PmLogFile_t* logFileP)
+static int ForceRotateLogFile(PmLogFile_t *logFileP)
 {
-	int				result;
-	int				err;
-	struct stat		fileStat;
+	int             result;
+	int             err;
+	struct stat     fileStat;
 
 	result = stat(logFileP->path, &fileStat);
+
 	if (result != 0)
 	{
 		err = errno;
@@ -726,11 +805,11 @@ static int ForceRotateLogFile(PmLogFile_t* logFileP)
  * @return true if the specified message attributes match the specified
  * rule.
  */
-static bool MatchOutputRule(const PmLogRule_t* ruleP, int pri,
-	const char* programName)
+static bool MatchOutputRule(const PmLogRule_t *ruleP, int pri,
+                            const char *programName)
 {
-	int		fac;
-	int		lvl;
+	int     fac;
+	int     lvl;
 
 	fac = pri & LOG_FACMASK;
 	lvl = pri & LOG_PRIMASK;
@@ -790,7 +869,7 @@ static bool MatchOutputRule(const PmLogRule_t* ruleP, int pri,
 }
 
 /* Forward Declaration */
-static void LogFileKillRotations(PmLogFile_t* logFileP, int start);
+static void LogFileKillRotations(PmLogFile_t *logFileP, int start);
 
 /**
  * @brief OutputMessage
@@ -801,16 +880,18 @@ static void LogFileKillRotations(PmLogFile_t* logFileP, int start);
  * @param msg
  */
 static void OutputMessage(
-	const PmLogContextConf_t* contextConfP, int pri,
-	const char* programName, const char* msg)
+    const PmLogContextConf_t *contextConfP, int pri,
+    const char *programName, const char *msg)
 {
-	bool						wantOutput[ g_numOutputs ];
-	int							i;
-	const PmLogRule_t*			ruleP;
-	PmLogFile_t*				logFileP;
+	bool                        wantOutput[ g_numOutputs ];
+	int                         i;
+	const PmLogRule_t          *ruleP;
+	PmLogFile_t                *logFileP;
 
-	if (contextConfP == NULL) {
-		PmLogError(g_context, "INVALID_PARAMETER", 1, PMLOGKS("ErrorText", "contextConfP is null"), "");
+	if (contextConfP == NULL)
+	{
+		PmLogError(g_context, "INVALID_PARAMETER", 1, PMLOGKS("ErrorText",
+		           "contextConfP is null"), "");
 		return;
 	}
 
@@ -823,14 +904,20 @@ static void OutputMessage(
 	for (i = 0; i < contextConfP->numRules; i++)
 	{
 		ruleP = &contextConfP->rules[ i ];
+
 		if (MatchOutputRule(ruleP, pri, programName))
 		{
 			g_assert(ruleP->outputIndex >= 0);
 			g_assert(ruleP->outputIndex < g_numOutputs);
+
 			if (ruleP->omitOutput)
+			{
 				wantOutput[ ruleP->outputIndex ] = false;
+			}
 			else
+			{
 				wantOutput[ ruleP->outputIndex ] = true;
+			}
 		}
 	}
 
@@ -838,42 +925,64 @@ static void OutputMessage(
 	for (i = 0; i < g_numOutputs; i++)
 	{
 		logFileP = &g_logFiles[ i ];
+
 		if (wantOutput[ i ])
 		{
 			int err_code = WriteToLogFile(logFileP, msg, strlen(msg));
 
 			/* out of space.. clear it and report it */
-			if (err_code == ENOSPC) {
-				PmLogError(g_context, "OUTOFSPACE", 1, PMLOGKFV("ErrorCode", "%d", err_code), "");
+			if (err_code == ENOSPC)
+			{
+				PmLogError(g_context, "OUTOFSPACE", 1, PMLOGKFV("ErrorCode", "%d", err_code),
+				           "");
 				gchar *file_name = NULL;
 				GError *gerr = NULL;
-				if (!g_spawn_command_line_sync("@WEBOS_INSTALL_DATADIR@/PmLogDaemon/show_disk_usage.sh @WEBOS_INSTALL_LOGDIR@", &file_name, NULL, NULL, &gerr)) {
-					PmLogError(g_context, "SPAWN_FAILED", 1, PMLOGKS("ErrorText", gerr->message), "");
+
+				if (!g_spawn_command_line_sync("@WEBOS_INSTALL_DATADIR@/PmLogDaemon/show_disk_usage.sh @WEBOS_INSTALL_LOGDIR@",
+				                               &file_name, NULL, NULL, &gerr))
+				{
+					PmLogError(g_context, "SPAWN_FAILED", 1, PMLOGKS("ErrorText", gerr->message),
+					           "");
 					g_error_free(gerr);
-				} else {
+				}
+				else
+				{
 					g_return_if_fail(file_name);
 					g_strstrip(file_name);
 
 					/* clear some space */
 					int j;
+
 					for (j = 0; j < g_numOutputs; j++)
+					{
 						LogFileKillRotations(&g_logFiles[j], 0);
+					}
 
 					RdxReportMetadata md = create_rdx_report_metadata();
 					rdx_report_metadata_set_component(md, "syslog");
 					rdx_report_metadata_set_cause(md, "@WEBOS_INSTALL_LOGDIR@ full");
 					rdx_report_metadata_set_detail(md, "@WEBOS_INSTALL_LOGDIR@ full");
-					if (!rdx_make_report_from_file(md, file_name)) {
+
+					if (!rdx_make_report_from_file(md, file_name))
+					{
 						/* more aggressive cleanup */
-						PmLogDebug(g_context, "%s: couldn't create low disk space report after clearing logs.. Kill 'em all!\n", __func__);
+						PmLogDebug(g_context,
+						           "%s: couldn't create low disk space report after clearing logs.. Kill 'em all!\n",
+						           __func__);
 						system("/bin/rm -rf @WEBOS_INSTALL_LOGDIR@/* @WEBOS_INSTALL_LOGDIR@/.*");
 						system("/usr/bin/pkill -SIGHUP rdxd"); /* restart rdxd */
-						if (!rdx_make_report_from_file(md, file_name)) {
-							PmLogDebug(g_context, "%s: still couldnt make report after nuking @WEBOS_INSTALL_LOGDIR@!\n", __func__);
+
+						if (!rdx_make_report_from_file(md, file_name))
+						{
+							PmLogDebug(g_context,
+							           "%s: still couldnt make report after nuking @WEBOS_INSTALL_LOGDIR@!\n",
+							           __func__);
 						}
 					}
+
 					destroy_rdx_report_metadata(md);
 				}
+
 				g_remove(file_name);
 				g_free(file_name);
 			}
@@ -886,7 +995,7 @@ static void OutputMessage(
  * @brief ParseMsgProgram
  *
  * If the message came from a syslog call, it should be of the form:
- * 	<progname>: [ '[' <pid> ']' ] ' '
+ *  <progname>: [ '[' <pid> ']' ] ' '
  *
  * If this is matched, return the address of the character past the ' ',
  * else return NULL.
@@ -901,11 +1010,11 @@ static void OutputMessage(
  * @return if a match was made, the program name is returned in programName,
  * otherwise it should be left empty.
  */
-static const char* ParseMsgProgram(const char* msg,
-	char* programFull, size_t programFullBuffSize, size_t* nameLenP,
-	char* programName, size_t programNameBuffSize)
+static const char *ParseMsgProgram(const char *msg,
+                                   char *programFull, size_t programFullBuffSize, size_t *nameLenP,
+                                   char *programName, size_t programNameBuffSize)
 {
-	const char* s;
+	const char *s;
 	size_t      nameLen;
 	size_t      fullLen;
 	int         index_colon = -1;
@@ -918,6 +1027,7 @@ static const char* ParseMsgProgram(const char* msg,
 
 	/* span characters not including ':' and whitespace */
 	nameLen = 0;
+
 	while ((*s != 0) && (*s != ':') && (!isspace(*s)))
 	{
 		nameLen++;
@@ -932,16 +1042,20 @@ static const char* ParseMsgProgram(const char* msg,
 	if (*s != ':')
 	{
 		return NULL;
-	} else {
+	}
+	else
+	{
 		// Remember index of colon to remove the colon
 		index_colon = s - msg;
 	}
+
 	s++;
 
 	if (*s != ' ')
 	{
 		return NULL;
 	}
+
 	s++;
 
 	fullLen = s - msg;
@@ -953,10 +1067,14 @@ static const char* ParseMsgProgram(const char* msg,
 	}
 
 	memcpy(programFull, msg, fullLen);
-	if (index_colon > -1) {
+
+	if (index_colon > -1)
+	{
 		programFull[ index_colon ] = ' ';  // Remove the colon and replace with space
-		programFull[ index_colon + 1 ] = '\0'; // Replace with next of the colon with NUL
+		programFull[ index_colon + 1 ] =
+		    '\0'; // Replace with next of the colon with NUL
 	}
+
 	programFull[ fullLen ] = '\0';
 
 	*nameLenP = nameLen;
@@ -978,16 +1096,16 @@ static const char* ParseMsgProgram(const char* msg,
  * @brief ParseMsgPidTid
  *
  * If PmLogLib is set to log process/thread IDs, it should be of the form:
- * 	'[' <pid> [ ':' <tid> ] ']' ' '
+ *  '[' <pid> [ ':' <tid> ] ']' ' '
  *
  * @param msg the message to parse
  *
  * @return if this is matched, return the address of the character past the ' ',
  * else return NULL.
  */
-static const char* ParseMsgPidTid(const char* msg)
+static const char *ParseMsgPidTid(const char *msg)
 {
-	const char* s;
+	const char *s;
 
 	s = msg;
 
@@ -995,14 +1113,16 @@ static const char* ParseMsgPidTid(const char* msg)
 	{
 		return NULL;
 	}
+
 	s++;
 
-	if (']' == *s ) // If "[Pid:Tid]" is empty, it will come as "[]".
+	if (']' == *s)  // If "[Pid:Tid]" is empty, it will come as "[]".
 	{
 		if (*++s != ' ')
 		{
 			return NULL;
 		}
+
 		return ++s;
 	}
 
@@ -1010,6 +1130,7 @@ static const char* ParseMsgPidTid(const char* msg)
 	{
 		return NULL;
 	}
+
 	s++;
 
 	while (isdigit(*s))
@@ -1020,10 +1141,12 @@ static const char* ParseMsgPidTid(const char* msg)
 	if (*s == ':')
 	{
 		s++;
+
 		if (!isdigit(*s))
 		{
 			return NULL;
 		}
+
 		s++;
 
 		while (isdigit(*s))
@@ -1036,12 +1159,14 @@ static const char* ParseMsgPidTid(const char* msg)
 	{
 		return NULL;
 	}
+
 	s++;
 
 	if (*s != ' ')
 	{
 		return NULL;
 	}
+
 	s++;
 
 	return s;
@@ -1053,7 +1178,7 @@ static const char* ParseMsgPidTid(const char* msg)
  *
  * If the message came from a PmLogLib call that specified a context,
  * it should be of the form:
- * 	contextName msgid
+ *  contextName msgid
  *
  * If a match was made, the context name is returned in contextName,
  * otherwise it should be left empty.
@@ -1064,11 +1189,11 @@ static const char* ParseMsgPidTid(const char* msg)
  *
  * @return the address of the character past the ' ' if this is matched, otherwise return NULL.
  */
-static const char* ParseMsgContext(const char* msg, char* contextName,
-	size_t contextNameBuffSize)
+static const char *ParseMsgContext(const char *msg, char *contextName,
+                                   size_t contextNameBuffSize)
 {
-	const char* s;
-	size_t		i;
+	const char *s;
+	size_t      i;
 
 	contextName[ 0 ] = 0;
 
@@ -1077,6 +1202,7 @@ static const char* ParseMsgContext(const char* msg, char* contextName,
 	/* span characters that are allowed for context names
 	 * see PmLogLib for definition */
 	i = 0;
+
 	while (!isspace(*s))
 	{
 		i++;
@@ -1111,11 +1237,11 @@ static const char* ParseMsgContext(const char* msg, char* contextName,
  *
  * @return true iff the message was a command and it was handled.
  */
-static bool HandleLogCommand(const char* msg)
+static bool HandleLogCommand(const char *msg)
 {
-	const char*  kLogCmdPrefix    = "!log ";
+	const char  *kLogCmdPrefix    = "!log ";
 	const size_t kLogCmdPrefixLen = 5;
-	PmLogFile_t* logFileP;
+	PmLogFile_t *logFileP;
 
 	if (strncmp(msg, kLogCmdPrefix, kLogCmdPrefixLen) != 0)
 	{
@@ -1142,14 +1268,18 @@ static bool HandleLogCommand(const char* msg)
  *
  * @return -1 on error, the monotonic time otherwise
  */
-static __time_t getMonotonicTime() {
+static __time_t getMonotonicTime()
+{
 	int result = 0;
 	struct timespec ts;
-	result = clock_gettime(CLOCK_MONOTONIC,&ts);
-	if (result != 0) {
+	result = clock_gettime(CLOCK_MONOTONIC, &ts);
+
+	if (result != 0)
+	{
 		PmLogDebug(g_context, "%s: Problem reading time", __FUNCTION__);
 		return -1;
 	}
+
 	return ts.tv_sec;
 }
 
@@ -1161,35 +1291,48 @@ static __time_t getMonotonicTime() {
  * @param msg The message to flush
  * @param data the context to flush under
  */
-void FlushMessage(const char* msg, gpointer data) {
+void FlushMessage(const char *msg, gpointer data)
+{
 	PmLogDebug(g_context, "%s: called with msg=%s\n", __FUNCTION__, msg);
-	const PmLogContextConf_t*	contextConfP = data;
-	gchar** tokens 		= g_strsplit(msg,"/", 3);
+	const PmLogContextConf_t   *contextConfP = data;
+	gchar **tokens      = g_strsplit(msg, "/", 3);
+
 	/* TODO: report corrupted buff msg, or print err msg */
-	if (tokens == NULL) {
+	if (tokens == NULL)
+	{
 		/* no buffer message */
 		PmLogDebug(g_context, "%s: No buffer message\n", __FUNCTION__);
-	} else if (tokens[0] && tokens[1] && tokens[2]) {
+	}
+	else if (tokens[0] && tokens[1] && tokens[2])
+	{
 		/* TODO: check size of tokens */
 		char *p;
-		errno=0;
+		errno = 0;
 		int pri = strtol(tokens[0], &p, 10);
 
-		if ((errno != 0) || ((*p) != '\0')) {
+		if ((errno != 0) || ((*p) != '\0'))
+		{
 			PmLogDebug(g_context, "%s: parse error on pri token\n", __FUNCTION__);
 			goto error;
 		}
-		gchar* programName 	= tokens[1];
-		gchar* outMsg 		= tokens[2];
+
+		gchar *programName  = tokens[1];
+		gchar *outMsg       = tokens[2];
 
 		OutputMessage(contextConfP, pri, programName, outMsg);
-	} else {
+	}
+	else
+	{
 		/* corrupted buffer message */
 		PmLogDebug(g_context, "%s: Corrupted buffer message\n", __FUNCTION__);
 	}
+
 error:
+
 	if (tokens)
+	{
 		g_strfreev(tokens);
+	}
 
 }
 
@@ -1200,13 +1343,14 @@ error:
  *
  * @return pointer to new gchar* containing timestamp
  */
-static gchar* MakeMessageTimestamp() {
+static gchar *MakeMessageTimestamp()
+{
 
-	struct timeval	nowTv;
-	time_t			now;
-	struct tm		nowTm;
-	char			fracSecStr[ 16 ];
-	GString*		timeStamp = NULL;
+	struct timeval  nowTv;
+	time_t          now;
+	struct tm       nowTm;
+	char            fracSecStr[ 16 ];
+	GString        *timeStamp = NULL;
 	__time_t mono = -1;
 
 	memset(&nowTv, 0, sizeof(nowTv));
@@ -1220,19 +1364,20 @@ static gchar* MakeMessageTimestamp() {
 		(void) gmtime_r(&now, &nowTm);
 
 		fracSecStr[ 0 ] = 0;
+
 		if (g_timeStampFracSecDigits > 0)
 		{
 			snprintf(fracSecStr, sizeof(fracSecStr),
-					".%06ld", nowTv.tv_usec);
+			         ".%06ld", nowTv.tv_usec);
 			fracSecStr[ 1 + g_timeStampFracSecDigits ] = 0;
 		}
 
 
 		timeStamp = g_string_sized_new(40);
 		g_string_printf(timeStamp,
-				"%04d-%02d-%02dT%02d:%02d:%02d%sZ",
-				1900 + nowTm.tm_year, 1 + nowTm.tm_mon,	nowTm.tm_mday,
-				nowTm.tm_hour, nowTm.tm_min, nowTm.tm_sec, fracSecStr);
+		                "%04d-%02d-%02dT%02d:%02d:%02d%sZ",
+		                1900 + nowTm.tm_year, 1 + nowTm.tm_mon, nowTm.tm_mday,
+		                nowTm.tm_hour, nowTm.tm_min, nowTm.tm_sec, fracSecStr);
 	}
 	else
 	{
@@ -1244,13 +1389,17 @@ static gchar* MakeMessageTimestamp() {
 	}
 
 	/* append the monotonic time */
-	if (g_timeStampMonotonic) {
+	if (g_timeStampMonotonic)
+	{
 		mono = getMonotonicTime();
+
 		if (mono != -1)
+		{
 			g_string_append_printf(timeStamp, " [%ld]", mono);
+		}
 	}
 
-	return g_string_free(timeStamp,FALSE);
+	return g_string_free(timeStamp, FALSE);
 }
 
 /**
@@ -1266,49 +1415,61 @@ static gchar* MakeMessageTimestamp() {
  *
  * @return
  */
-gboolean FlushNotMe(gpointer key, gpointer value, gpointer data) {
-	PmLogContextConf_t*	keyContextP = value;
-	const PmLogContextConf_t*	me = data;
+gboolean FlushNotMe(gpointer key, gpointer value, gpointer data)
+{
+	PmLogContextConf_t *keyContextP = value;
+	const PmLogContextConf_t   *me = data;
 
-	if (keyContextP == me) {
+	if (keyContextP == me)
+	{
 		/* Don't flush me. It will be done last so I show up recently in log */
-		PmLogDebug(g_context, "%s: %s will be flushing last, skipping",__FUNCTION__, keyContextP->contextName);
-	} else if ( keyContextP->rb) {
+		PmLogDebug(g_context, "%s: %s will be flushing last, skipping", __FUNCTION__,
+		           keyContextP->contextName);
+	}
+	else if (keyContextP->rb)
+	{
 		/* have RB, need to flush */
-		PmLogDebug(g_context, "%s: %s is now flushing...",__FUNCTION__, keyContextP->contextName);
+		PmLogDebug(g_context, "%s: %s is now flushing...", __FUNCTION__,
+		           keyContextP->contextName);
 
-		if (!(keyContextP->rb->isEmpty)) {
+		if (!(keyContextP->rb->isEmpty))
+		{
 
-			gchar * timeStamp = MakeMessageTimestamp();
-			char			priStr[ 20 ];
+			gchar *timeStamp = MakeMessageTimestamp();
+			char            priStr[ 20 ];
 			/* look up facility + priority name from pri */
 			FormatPri(LOG_SYSLOG | LOG_INFO, priStr, sizeof(priStr));
-			gchar * outMsg = g_strdup_printf("%s %s pmsyslogd: {%s}: ------ Flushing ring buffer for context %s ------\n",
-                    timeStamp,
-                    priStr,
-                    keyContextP->contextName,
-                    me->contextName);
+			gchar *outMsg =
+			    g_strdup_printf("%s %s pmsyslogd: {%s}: ------ Flushing ring buffer for context %s ------\n",
+			                    timeStamp,
+			                    priStr,
+			                    keyContextP->contextName,
+			                    me->contextName);
 
 			g_free(timeStamp);
 			OutputMessage(keyContextP, LOG_SYSLOG | LOG_INFO, "pmsyslogd", outMsg);
-            g_free(outMsg);
+			g_free(outMsg);
 
 			RBFlush(keyContextP->rb, FlushMessage, keyContextP);
 
 			timeStamp = MakeMessageTimestamp();
 			outMsg = g_strdup_printf("%s %s pmsyslogd: {%s}: ------ Done flushing ------\n",
-                    timeStamp,
-                    priStr,
-                    keyContextP->contextName);
+			                         timeStamp,
+			                         priStr,
+			                         keyContextP->contextName);
 			OutputMessage(keyContextP, LOG_SYSLOG | LOG_INFO, "pmsyslogd", outMsg);
 
 			g_free(timeStamp);
 			g_free(outMsg);
 		}
-	} else {
-		/* no RB, keep going */
-		PmLogDebug(g_context, "%s: %s doesnt have ring buffer, not flushing",__FUNCTION__, keyContextP->contextName);
 	}
+	else
+	{
+		/* no RB, keep going */
+		PmLogDebug(g_context, "%s: %s doesnt have ring buffer, not flushing",
+		           __FUNCTION__, keyContextP->contextName);
+	}
+
 	return FALSE;
 }
 
@@ -1320,12 +1481,15 @@ gboolean FlushNotMe(gpointer key, gpointer value, gpointer data) {
  * @param msg message to parse
  */
 static
-const char* ParseMsgTag(const char* msg)
+const char *ParseMsgTag(const char *msg)
 {
 	int tagLength = strlen(PMLOG_IDENTIFIER) + 1; // tag + space
 
-	if ((strlen(msg) < tagLength)  || (strncmp(msg, PMLOG_IDENTIFIER " ", tagLength) != 0))
-		return NULL; // Does not start with tag
+	if ((strlen(msg) < tagLength)  ||
+	        (strncmp(msg, PMLOG_IDENTIFIER " ", tagLength) != 0))
+	{
+		return NULL;    // Does not start with tag
+	}
 
 	return msg + tagLength;
 }
@@ -1337,19 +1501,19 @@ const char* ParseMsgTag(const char* msg)
  * @param pri priority
  * @param msg message to log
  */
-static void LogMessage(int pri, const char* msg)
+static void LogMessage(int pri, const char *msg)
 {
-	int				msgLen;
-	gchar*          timeStamp = NULL;
-	char			priStr[ 20 ];
-	GString*		outMsg = g_string_sized_new( MAXLINE + 1 );
-	char			msgProgram[ 256 ];
-	char			programName[ PMLOG_PROGRAM_MAX_NAME_LENGTH + 1 ];
-	char			contextName[ PMLOG_MAX_CONTEXT_NAME_LEN + 1 ];
-	const char*		msgLeft;
-	const char*		msgCurr;
-	const char*		msgNext;
-	size_t			msgProgramNameLen;
+	int             msgLen;
+	gchar          *timeStamp = NULL;
+	char            priStr[ 20 ];
+	GString        *outMsg = g_string_sized_new(MAXLINE + 1);
+	char            msgProgram[ 256 ];
+	char            programName[ PMLOG_PROGRAM_MAX_NAME_LENGTH + 1 ];
+	char            contextName[ PMLOG_MAX_CONTEXT_NAME_LEN + 1 ];
+	const char     *msgLeft;
+	const char     *msgCurr;
+	const char     *msgNext;
+	size_t          msgProgramNameLen;
 
 	timeStamp = MakeMessageTimestamp();
 
@@ -1358,18 +1522,19 @@ static void LogMessage(int pri, const char* msg)
 	 * Check for RFC 3164 timestamp  0123456789ABCDEF0 "Mmm dd hh:mm:ss " and remove it
 	 */
 	msgLen = strlen(msg);
+
 	if ((msgLen >= 16) &&
-		(msg[ 3 ] == ' ') &&
-		isdigit(msg[ 5 ]) &&
-		(msg[ 6 ] == ' ') &&
-		isdigit(msg[ 8 ]) &&
-		(msg[ 9 ] == ':') &&
-		isdigit(msg[ 10 ]) &&
-		isdigit(msg[ 11 ]) &&
-		(msg[ 12 ] == ':') &&
-		isdigit(msg[ 13 ]) &&
-		isdigit(msg[ 14 ]) &&
-		(msg[ 15 ] == ' '))
+	        (msg[ 3 ] == ' ') &&
+	        isdigit(msg[ 5 ]) &&
+	        (msg[ 6 ] == ' ') &&
+	        isdigit(msg[ 8 ]) &&
+	        (msg[ 9 ] == ':') &&
+	        isdigit(msg[ 10 ]) &&
+	        isdigit(msg[ 11 ]) &&
+	        (msg[ 12 ] == ':') &&
+	        isdigit(msg[ 13 ]) &&
+	        isdigit(msg[ 14 ]) &&
+	        (msg[ 15 ] == ' '))
 	{
 		msg += 16;
 		msgLen -= 16;
@@ -1394,7 +1559,8 @@ static void LogMessage(int pri, const char* msg)
 
 	/* parse off program identifier prefix */
 	msgNext = ParseMsgProgram(msgLeft, msgProgram, sizeof(msgProgram),
-		&msgProgramNameLen, programName, sizeof(programName));
+	                          &msgProgramNameLen, programName, sizeof(programName));
+
 	if (msgNext != NULL)
 	{
 		msgLeft = msgNext; /* eg "contextName rest_of_msg..." */
@@ -1405,12 +1571,13 @@ static void LogMessage(int pri, const char* msg)
 
 	/* parse off PmLogLib pid/tid prefix */
 	msgNext = ParseMsgPidTid(msgCurr);
+
 	if (msgNext != NULL)
 	{
 		/* integrate into msgProgram */
 		snprintf(msgProgram + msgProgramNameLen + 1,
-			sizeof(msgProgram) - msgProgramNameLen + 1, "%.*s",
-			msgNext - msgCurr, msgCurr);
+		         sizeof(msgProgram) - msgProgramNameLen + 1, "%.*s",
+		         msgNext - msgCurr, msgCurr);
 
 		msgLeft = msgNext;
 		msgCurr = msgNext;
@@ -1418,15 +1585,20 @@ static void LogMessage(int pri, const char* msg)
 
 	/* Recognization for PMLOG_IDENTIFIER*/
 	msgNext = ParseMsgTag(msgCurr);
-	if (!msgNext) {
+
+	if (!msgNext)
+	{
 		// not from pmloglib
 		strcpy(contextName, LEGACY_LOG);
-	} else {
+	}
+	else
+	{
 		// from pmloglib
 		msgCurr = msgNext;
 		msgLeft = msgNext;
 		/* parse off PmLogLib context identifier prefix (if present) */
 		msgNext = ParseMsgContext(msgCurr, contextName, sizeof(contextName));
+
 		if (msgNext != NULL)
 		{
 			msgCurr = msgNext;
@@ -1435,25 +1607,30 @@ static void LogMessage(int pri, const char* msg)
 
 	if (HandleLogCommand(msgCurr))
 	{
-	        g_string_free(outMsg, true);
+		g_string_free(outMsg, true);
 		return;
 	}
 
 	outMsg = g_string_append(outMsg, msgProgram); /* e.g "uploadd \0" */
 	outMsg = g_string_append(outMsg, msgLeft); /* "context msgid kvpair message" */
-	outMsg = g_string_append(outMsg, "\n"); /* e.g "2008-12-08T12:17:12.824279Z [1824] user.info uploadd uploadd msgid kvpairs msg... \n" */
+	outMsg = g_string_append(outMsg,
+	                         "\n"); /* e.g "2008-12-08T12:17:12.824279Z [1824] user.info uploadd uploadd msgid kvpairs msg... \n" */
 
-	PmLogContextConf_t*	contextConfP = NULL;
+	PmLogContextConf_t *contextConfP = NULL;
 
 	/* look up the specified context */
 	if ((contextName[ 0 ] != 0))
+	{
 		contextConfP = g_tree_lookup(g_contextConfs, contextName);
+	}
 
 	/* default to default context */
 	if (contextConfP == NULL)
 	{
 		contextConfP = g_tree_lookup(g_contextConfs, kPmLogDefaultContextName);
-		if (contextConfP == NULL) {
+
+		if (contextConfP == NULL)
+		{
 			PmLogDebug(g_context, "%s, default context not found!\n", __FUNCTION__);
 			g_string_free(outMsg, true);
 			return;
@@ -1461,98 +1638,129 @@ static void LogMessage(int pri, const char* msg)
 	}
 
 	/* Has ring buffer */
-	if (contextConfP->rb) {
-		PmLogDebug(g_context, "%s: %s has RB\n", __FUNCTION__, contextConfP->contextName);
+	if (contextConfP->rb)
+	{
+		PmLogDebug(g_context, "%s: %s has RB\n", __FUNCTION__,
+		           contextConfP->contextName);
 		int lvl = pri & LOG_PRIMASK;
-		if (lvl <= contextConfP->rb->flushLevel) {
-			PmLogDebug(g_context, "%s: %s Flushing!\n", __FUNCTION__, contextConfP->contextName);
+
+		if (lvl <= contextConfP->rb->flushLevel)
+		{
+			PmLogDebug(g_context, "%s: %s Flushing!\n", __FUNCTION__,
+			           contextConfP->contextName);
 			g_tree_foreach(g_contextConfs, FlushNotMe, contextConfP);
 
 			timeStamp = MakeMessageTimestamp();
 			char priStr2[20];
 			FormatPri(LOG_SYSLOG | LOG_INFO, priStr2, sizeof(priStr2));
-			gchar * flushMsg = g_strdup_printf("%s %s pmsyslogd: {%s}: ------ Flushing ring buffer for %s message ------\n",
-                    timeStamp,
-                    priStr2,
-                    contextConfP->contextName,
-                    priStr);
+			gchar *flushMsg =
+			    g_strdup_printf("%s %s pmsyslogd: {%s}: ------ Flushing ring buffer for %s message ------\n",
+			                    timeStamp,
+			                    priStr2,
+			                    contextConfP->contextName,
+			                    priStr);
 			g_free(timeStamp);
 			OutputMessage(contextConfP, pri, "pmsyslogd", flushMsg);
 
 			/* Flush */
 			RBFlush(contextConfP->rb, FlushMessage, contextConfP);
 			OutputMessage(contextConfP, pri, programName, outMsg->str);
-            g_free(flushMsg);
+			g_free(flushMsg);
 
 			timeStamp = MakeMessageTimestamp();
-			flushMsg = g_strdup_printf("%s %s pmsyslogd: {%s}: ------ Done flushing ------\n",
-                    timeStamp,
-                    priStr2,
-                    contextConfP->contextName);
+			flushMsg =
+			    g_strdup_printf("%s %s pmsyslogd: {%s}: ------ Done flushing ------\n",
+			                    timeStamp,
+			                    priStr2,
+			                    contextConfP->contextName);
 			OutputMessage(contextConfP, pri, "pmsyslogd", flushMsg);
 			g_free(timeStamp);
 			g_free(flushMsg);
 
-		} else {
-			PmLogDebug(g_context, "%s: %s buffering!\n", __FUNCTION__, contextConfP->contextName);
+		}
+		else
+		{
+			PmLogDebug(g_context, "%s: %s buffering!\n", __FUNCTION__,
+			           contextConfP->contextName);
 			/* buffer */
 			char buffMsg[contextConfP->rb->bufferSize];
-			snprintf(buffMsg, sizeof(buffMsg) - 1, "%d/%s/%s", pri, programName, outMsg->str);
-			buffMsg[sizeof(buffMsg) -1 ] = '\0';
+			snprintf(buffMsg, sizeof(buffMsg) - 1, "%d/%s/%s", pri, programName,
+			         outMsg->str);
+			buffMsg[sizeof(buffMsg) - 1 ] = '\0';
 			RBWrite(contextConfP->rb, buffMsg, strlen(buffMsg) + 1);
 		}
-	} else {
+	}
+	else
+	{
 		OutputMessage(contextConfP, pri, programName, outMsg->str);
 	}
 
 	g_string_free(outMsg, true);
 
 #ifdef RDX_LOG_REPORTING
-    /* RDX report */
-    int i=0;
-    if ((pri & LOG_PRIMASK) <= LOG_CRIT) {
-        const char * black_list[] = { "rdxd", "uploadd", "pmsyslogd", "upstart", NULL };
-        for (i=0; black_list[i] != NULL; i++) {
-            if (strcmp(black_list[i], programName) == 0)
-                return;
-        }
+	/* RDX report */
+	int i = 0;
 
-        RdxReportMetadata md = create_rdx_report_metadata();
-        rdx_report_metadata_set_component(md, "syslog");
-        const char * cause;
-        switch ((pri & LOG_PRIMASK)) {
-            case LOG_EMERG:
-                cause = "LOG_EMERG";
-                break;
-            case LOG_ALERT:
-                cause = "LOG_ALERT";
-                break;
-            case LOG_CRIT:
-                cause = "LOG_CRIT";
-                break;
-            case LOG_ERR:
-                cause = "LOG_ERR";
-                break;
-            case LOG_WARNING:
-                cause = "LOG_WARNING";
-                break;
-            case LOG_NOTICE:
-                cause = "LOG_NOTICE";
-                break;
-            case LOG_INFO:
-                cause = "LOG_INFO";
-                break;
-            case LOG_DEBUG:
-                cause = "LOG_DEBUG";
-                break;
-            default:
-                cause = "UNKNOWN";
-        }
-        rdx_report_metadata_set_cause(md, cause);
-        rdx_report_metadata_set_detail(md, programName);
-        rdx_make_report(md, msg);
-        destroy_rdx_report_metadata(md);
-    }
+	if ((pri & LOG_PRIMASK) <= LOG_CRIT)
+	{
+		const char *black_list[] = { "rdxd", "uploadd", "pmsyslogd", "upstart", NULL };
+
+		for (i = 0; black_list[i] != NULL; i++)
+		{
+			if (strcmp(black_list[i], programName) == 0)
+			{
+				return;
+			}
+		}
+
+		RdxReportMetadata md = create_rdx_report_metadata();
+		rdx_report_metadata_set_component(md, "syslog");
+		const char *cause;
+
+		switch ((pri & LOG_PRIMASK))
+		{
+			case LOG_EMERG:
+				cause = "LOG_EMERG";
+				break;
+
+			case LOG_ALERT:
+				cause = "LOG_ALERT";
+				break;
+
+			case LOG_CRIT:
+				cause = "LOG_CRIT";
+				break;
+
+			case LOG_ERR:
+				cause = "LOG_ERR";
+				break;
+
+			case LOG_WARNING:
+				cause = "LOG_WARNING";
+				break;
+
+			case LOG_NOTICE:
+				cause = "LOG_NOTICE";
+				break;
+
+			case LOG_INFO:
+				cause = "LOG_INFO";
+				break;
+
+			case LOG_DEBUG:
+				cause = "LOG_DEBUG";
+				break;
+
+			default:
+				cause = "UNKNOWN";
+		}
+
+		rdx_report_metadata_set_cause(md, cause);
+		rdx_report_metadata_set_detail(md, programName);
+		rdx_make_report(md, msg);
+		destroy_rdx_report_metadata(md);
+	}
+
 #endif
 }
 
@@ -1569,13 +1777,13 @@ static void LogMessage(int pri, const char* msg)
  * @param buff the message
  * @param buffLen the length of the message
  */
-static void ProcessMessage(const char* buff, int buffLen)
+static void ProcessMessage(const char *buff, int buffLen)
 {
-	int				pri;
-	const char*		in;
-	char			line[ MAXLINE + 1 ];
-	char*			out;
-	unsigned char	c;
+	int             pri;
+	const char     *in;
+	char            line[ MAXLINE + 1 ];
+	char           *out;
+	unsigned char   c;
 
 	/*
 	 * As we are using a datagram socket, we know that buff is a
@@ -1596,6 +1804,7 @@ static void ProcessMessage(const char* buff, int buffLen)
 	{
 		in++;
 		pri = 0;
+
 		while (isdigit(*in))
 		{
 			pri = pri * 10 + *in - '0';
@@ -1619,9 +1828,10 @@ static void ProcessMessage(const char* buff, int buffLen)
 	}
 
 	out = line;
+
 	while ((c = *in++) != 0)
 	{
-		if (out >= &line[ sizeof(line) - 1 ] )
+		if (out >= &line[ sizeof(line) - 1 ])
 		{
 			break;
 		}
@@ -1632,7 +1842,7 @@ static void ProcessMessage(const char* buff, int buffLen)
 		}
 		else if (c < 0x20)
 		{
-			if (out + 1 >= &line[ sizeof(line) - 1 ] )
+			if (out + 1 >= &line[ sizeof(line) - 1 ])
 			{
 				break;
 			}
@@ -1649,14 +1859,15 @@ static void ProcessMessage(const char* buff, int buffLen)
 			*out++ = c;
 		}
 	}
+
 	*out = 0;
 	LogMessage(pri, line);
 }
 
-static void _SysLogMessage(const int level, const char* fmt, ...)
+static void _SysLogMessage(const int level, const char *fmt, ...)
 {
-	va_list 	args;
-	char		msg[ 512 ];
+	va_list     args;
+	char        msg[ 512 ];
 
 	va_start(args, fmt);
 
@@ -1667,7 +1878,7 @@ static void _SysLogMessage(const int level, const char* fmt, ...)
 	LogMessage(level, msg);
 }
 
-static GMainLoop * mainLoop = NULL;
+static GMainLoop *mainLoop = NULL;
 
 /**
  * @brief QuitSysLogD
@@ -1699,17 +1910,19 @@ static void QuitSysLogD(int sig)
  *
  * @return TRUE to stop the traversal; currently it always returns FALSE
  */
-static gboolean LogConfig(gpointer key, gpointer value, gpointer data) {
-	const PmLogContextConf_t*	contextP = value;
-	gchar * name = (gchar*)key;
+static gboolean LogConfig(gpointer key, gpointer value, gpointer data)
+{
+	const PmLogContextConf_t   *contextP = value;
+	gchar *name = (gchar *)key;
 	int j;
 
-	const PmLogFile_t*  outputP;
-	const PmLogRule_t*  ruleP;
+	const PmLogFile_t  *outputP;
+	const PmLogRule_t  *ruleP;
 	char filter[32] = {0,};
 	char output[32] = {0,};
 
 	PmLogInfo(g_context, "CFG_CTX", 1, PMLOGKS("Name", name), "");
+
 	for (j = 0; j < contextP->numRules; j++)
 	{
 		ruleP = &contextP->rules[ j ];
@@ -1717,17 +1930,19 @@ static gboolean LogConfig(gpointer key, gpointer value, gpointer data) {
 		outputP = &g_outputConfs[ ruleP->outputIndex ];
 
 		snprintf(filter, sizeof(filter), "%s.%s%s.%s",
-                 GetRuleFacilityStr(ruleP->facility),
-                 ruleP->levelInvert ? "!" : "",
-                 GetRuleLevelStr(ruleP->level),
-                 (ruleP->program == NULL) ? "*" : ruleP->program);
+		         GetRuleFacilityStr(ruleP->facility),
+		         ruleP->levelInvert ? "!" : "",
+		         GetRuleLevelStr(ruleP->level),
+		         (ruleP->program == NULL) ? "*" : ruleP->program);
 
 		snprintf(output, sizeof(output), "%s%s",
-                 ruleP->omitOutput ? "-" : "",
-                 outputP->outputName);
+		         ruleP->omitOutput ? "-" : "",
+		         outputP->outputName);
 
-		PmLogInfo(g_context, "CFG_RULE", 2, PMLOGKS("Filter", filter), PMLOGKS("Output", output), "");
+		PmLogInfo(g_context, "CFG_RULE", 2, PMLOGKS("Filter", filter), PMLOGKS("Output",
+		          output), "");
 	}
+
 	/* return true to stop the traversal */
 	return FALSE;
 
@@ -1744,19 +1959,19 @@ static gboolean LogConfig(gpointer key, gpointer value, gpointer data) {
  */
 static void LogConfigInfo(void)
 {
-	const PmLogFile_t*	outputP;
-	int					i;
+	const PmLogFile_t  *outputP;
+	int                 i;
 
 	for (i = 0; i < g_numOutputs; i++)
 	{
 		outputP = &g_outputConfs[ i ];
 
 		PmLogInfo(g_context, "CFG_OUTPUT", 4,
-                  PMLOGKS("Name", outputP->outputName),
-                  PMLOGKS("Path", outputP->path),
-                  PMLOGKFV("Size", "%d", outputP->maxSize),
-                  PMLOGKFV("Rotations", "%d", outputP->rotations),
-                  "");
+		          PMLOGKS("Name", outputP->outputName),
+		          PMLOGKS("Path", outputP->path),
+		          PMLOGKFV("Size", "%d", outputP->maxSize),
+		          PMLOGKFV("Rotations", "%d", outputP->rotations),
+		          "");
 	}
 
 	g_tree_foreach(g_contextConfs, LogConfig, NULL);
@@ -1779,18 +1994,19 @@ static void LogConfigInfo(void)
  * @param start starting index to delete, see example above
  */
 static void
-LogFileKillRotations(PmLogFile_t* logFileP, int start)
+LogFileKillRotations(PmLogFile_t *logFileP, int start)
 {
-    int r = 0;
+	int r = 0;
+
 	for (r = start; r < PMLOG_MAX_NUM_ROTATIONS; r++)
 	{
-        gchar * rotation_file = r ?
-            g_strdup_printf(PMLOGDAEMON_FILE_ROTATION_PATTERN, logFileP->path, r - 1) :
-            g_strdup(logFileP->path);
+		gchar *rotation_file = r ?
+		                       g_strdup_printf(PMLOGDAEMON_FILE_ROTATION_PATTERN, logFileP->path, r - 1) :
+		                       g_strdup(logFileP->path);
 
-        g_remove(rotation_file);
-        g_free(rotation_file);
-    }
+		g_remove(rotation_file);
+		g_free(rotation_file);
+	}
 }
 
 
@@ -1801,7 +2017,7 @@ LogFileKillRotations(PmLogFile_t* logFileP, int start)
  * @param logFileP logfile to initialize
  * @param confP source of initial data to copy from.
  */
-static void LogFileInit(PmLogFile_t* logFileP, const PmLogFile_t* confP)
+static void LogFileInit(PmLogFile_t *logFileP, const PmLogFile_t *confP)
 {
 	/* copy the fields to this struct for convenience */
 	logFileP->outputName    = confP->outputName;
@@ -1809,8 +2025,8 @@ static void LogFileInit(PmLogFile_t* logFileP, const PmLogFile_t* confP)
 	logFileP->maxSize       = confP->maxSize;
 	logFileP->rotations     = confP->rotations;
 
-    /* make sure there are not stale rotation files around */
-    LogFileKillRotations(logFileP, logFileP->rotations + 1);
+	/* make sure there are not stale rotation files around */
+	LogFileKillRotations(logFileP, logFileP->rotations + 1);
 }
 
 
@@ -1827,25 +2043,34 @@ static void LogFileInit(PmLogFile_t* logFileP, const PmLogFile_t* confP)
  *
  * @return
  */
-gboolean HandleNewLog(GIOChannel *source,GIOCondition condition, gpointer data) {
-	char buff[MAXLINE+1];
+gboolean HandleNewLog(GIOChannel *source, GIOCondition condition,
+                      gpointer data)
+{
+	char buff[MAXLINE + 1];
 	ssize_t bytes;
 	int sock_fd = g_io_channel_unix_get_fd(source);
 
-	if ((condition & G_IO_IN) || (condition & G_IO_PRI)) {
+	if ((condition & G_IO_IN) || (condition & G_IO_PRI))
+	{
 		bytes = recv(sock_fd, buff, sizeof(buff) - 1, 0);
-		if (bytes <= 0) {
+
+		if (bytes <= 0)
+		{
 			DbgPrint("%s: recv returned %d", __FUNCTION__, bytes);
 			goto error;
 		}
 
-		if (bytes) {
+		if (bytes)
+		{
 			buff[bytes] = '\0';
 			ProcessMessage(buff, bytes);
 		}
-	} else {
+	}
+	else
+	{
 		DbgPrint("%s: unexpected watch event condition: %d\n", __FUNCTION__, condition);
 	}
+
 error:
 	/* TODO: should this ever return FALSE, to close the channel? */
 	return TRUE;
@@ -1876,28 +2101,39 @@ errorText | no | String | Error text
 //            End of API documentation comment block           //
 //                                                             //
 /////////////////////////////////////////////////////////////////
-static bool force_rotate_ls(LSHandle *lsHandle, LSMessage *lsMessage, void *wd) {
+static bool force_rotate_ls(LSHandle *lsHandle, LSMessage *lsMessage, void *wd)
+{
 
 	bool          ret_val;
-	PmLogFile_t*  logFileP;
+	PmLogFile_t  *logFileP;
 	jvalue_ref    reply = {0,};
-	jschema_ref   response_schema = jschema_parse (j_cstr_to_buffer("{}"), DOMOPT_NOOPT, NULL);
+	jschema_ref   response_schema = jschema_parse(j_cstr_to_buffer("{}"),
+	                                DOMOPT_NOOPT, NULL);
 
 	LSMessageRef(lsMessage);
 
 	reply = jobject_create();
 
 	logFileP = &g_logFiles[ 0 ];
-	if(ForceRotateLogFile(logFileP)) {
+
+	if (ForceRotateLogFile(logFileP))
+	{
 		jobject_put(reply, J_CSTR_TO_JVAL("returnValue"), jboolean_create(true));
-	} else {
+	}
+	else
+	{
 		jobject_put(reply, J_CSTR_TO_JVAL("returnValue"), jboolean_create(false));
-		jobject_put(reply, J_CSTR_TO_JVAL("errorText"), jstring_create("Log rotation failed"));
+		jobject_put(reply, J_CSTR_TO_JVAL("errorText"),
+		            jstring_create("Log rotation failed"));
 	}
 
-	ret_val = LSMessageReply(lsHandle, lsMessage, jvalue_tostring(reply, response_schema), &g_lsError);
-	if (!ret_val) {
-		PmLogError(g_context, "LSREPLY_ERROR", 1, PMLOGKS("ErrorText", g_lsError.message), "");
+	ret_val = LSMessageReply(lsHandle, lsMessage, jvalue_tostring(reply,
+	                         response_schema), &g_lsError);
+
+	if (!ret_val)
+	{
+		PmLogError(g_context, "LSREPLY_ERROR", 1, PMLOGKS("ErrorText",
+		           g_lsError.message), "");
 	}
 
 	LSMessageUnref(lsMessage);
@@ -1907,31 +2143,43 @@ static bool force_rotate_ls(LSHandle *lsHandle, LSMessage *lsMessage, void *wd) 
 	return (ret_val != 0);
 }
 
-static LSMethod lsMethod_public[] = {
+static LSMethod lsMethod_public[] =
+{
 	{ "forcerotate", force_rotate_ls },
 	{},
 };
 
-static bool register_luna_service(GMainLoop *mainLoop) {
+static bool register_luna_service(GMainLoop *mainLoop)
+{
 
 	bool result;
 	LSErrorInit(&g_lsError);
 
 	result = LSRegister(PMLOGD_APP_ID, &g_lsServiceHandle, &g_lsError);
-	if (!result) {
-		PmLogError(g_context, "LSREGISTER_ERROR", 1, PMLOGKS("ErrorText", "LSRegister ERROR"), "");
+
+	if (!result)
+	{
+		PmLogError(g_context, "LSREGISTER_ERROR", 1, PMLOGKS("ErrorText",
+		           "LSRegister ERROR"), "");
 		return false;
 	}
 
-	result = LSRegisterCategory (g_lsServiceHandle, "/", lsMethod_public, NULL, NULL, &g_lsError);
-	if (!result) {
-		PmLogError(g_context, "LSREGISTER_ERROR", 1, PMLOGKS("ErrorText", "LSRegisterCategory ERROR"), "");
+	result = LSRegisterCategory(g_lsServiceHandle, "/", lsMethod_public, NULL, NULL,
+	                            &g_lsError);
+
+	if (!result)
+	{
+		PmLogError(g_context, "LSREGISTER_ERROR", 1, PMLOGKS("ErrorText",
+		           "LSRegisterCategory ERROR"), "");
 		return false;
 	}
 
-	result = LSGmainAttach (g_lsServiceHandle, mainLoop, &g_lsError);
-	if (!result) {
-		PmLogError(g_context, "LSREGISTER_ERROR", 1, PMLOGKS("ErrorText", "LSGmainAttach ERROR"), "");
+	result = LSGmainAttach(g_lsServiceHandle, mainLoop, &g_lsError);
+
+	if (!result)
+	{
+		PmLogError(g_context, "LSREGISTER_ERROR", 1, PMLOGKS("ErrorText",
+		           "LSGmainAttach ERROR"), "");
 		return false;
 	}
 
@@ -1948,13 +2196,13 @@ static bool register_luna_service(GMainLoop *mainLoop) {
  */
 static int RunSysLogD(void)
 {
-	PmLogFile_t*        logFileP;
+	PmLogFile_t        *logFileP;
 	struct sockaddr_un  sunx;
 	int                 sock_fd;
 	int                 err;
 	int                 result;
 	int                 i;
-	GIOChannel*         gioch;
+	GIOChannel         *gioch;
 	bool                lsResult;
 
 	(void) signal(SIGINT, QuitSysLogD);
@@ -1974,14 +2222,19 @@ static int RunSysLogD(void)
 	(void) unlink(g_pathLog);
 
 	mainLoop = g_main_loop_new(NULL, FALSE);
-	if (mainLoop == NULL) goto error;
+
+	if (mainLoop == NULL)
+	{
+		goto error;
+	}
 
 	/* create socket listener */
 	memset(&sunx, 0, sizeof(sunx));
 	sunx.sun_family = AF_UNIX;
-	(void) strncpy(sunx.sun_path, g_pathLog, sizeof(sunx.sun_path)-1);
+	(void) strncpy(sunx.sun_path, g_pathLog, sizeof(sunx.sun_path) - 1);
 
 	sock_fd = socket(AF_UNIX, SOCK_DGRAM, 0);
+
 	if (sock_fd < 0)
 	{
 		err = errno;
@@ -1990,7 +2243,8 @@ static int RunSysLogD(void)
 	}
 
 	result = bind(sock_fd, (struct sockaddr *) &sunx,
-		sizeof(sunx.sun_family) + strlen(sunx.sun_path));
+	              sizeof(sunx.sun_family) + strlen(sunx.sun_path));
+
 	if (result < 0)
 	{
 		err = errno;
@@ -2000,6 +2254,7 @@ static int RunSysLogD(void)
 	}
 
 	result = chmod(g_pathLog, 0666);
+
 	if (result < 0)
 	{
 		err = errno;
@@ -2009,17 +2264,20 @@ static int RunSysLogD(void)
 	}
 
 	gioch = g_io_channel_unix_new(sock_fd);
-	if (gioch == NULL) {
+
+	if (gioch == NULL)
+	{
 		DbgPrint("%s: channel error using fd: %d\n", __FUNCTION__, sock_fd);
 		close(sock_fd);
 		return RESULT_RUN_ERR;
 	}
+
 	g_io_add_watch(gioch, G_IO_IN, HandleNewLog, NULL);
 	g_io_channel_unref(gioch);
 
 	/* Run the main loop */
 	//PmLogDebug(g_context, "PROC_START");
-	PmLogInfo(g_context, "TEST", 1, PMLOGKS("key","PROC_START"), "");
+	PmLogInfo(g_context, "TEST", 1, PMLOGKS("key", "PROC_START"), "");
 
 	if (g_showStartInfo)
 	{
@@ -2028,17 +2286,20 @@ static int RunSysLogD(void)
 
 	g_captureJSExceptions = false;
 #if 0
-    // TODO: We may need the equivalnet of this in the production code
+	// TODO: We may need the equivalnet of this in the production code
 
 	/* Before initializing, check to see that we are pointed to the QA server so we don't overload production with JS crashes */
-	if (g_file_test ("/usr/share/omadm/internal", G_FILE_TEST_EXISTS)) {
+	if (g_file_test("/usr/share/omadm/internal", G_FILE_TEST_EXISTS))
+	{
 		SysLogMessage(LEVEL_INFO, "", "Pointed to QA, enabling JS RDX scrape");
 		g_captureJSExceptions = true;
 	}
+
 #endif
 
 	lsResult = register_luna_service(mainLoop);
-	PmLogDebug(g_context, "LSRESITER_SERVICE result : %s", lsResult ? "true" : "false");
+	PmLogDebug(g_context, "LSRESITER_SERVICE result : %s",
+	           lsResult ? "true" : "false");
 
 	g_main_loop_run(mainLoop);
 	g_main_loop_unref(mainLoop);
@@ -2082,42 +2343,55 @@ static void InitSettings(void)
  *
  * @return Return result code.
  */
-static int ParseParams(int argc, char* argv[])
+static int ParseParams(int argc, char *argv[])
 {
 	int ret = RESULT_OK;
 	GOptionEntry entries[] =
 	{
-		{ "fractional", 'f', 0, G_OPTION_ARG_INT, &g_timeStampFracSecDigits,
-			"Specify timestamp seconds decimal precision (0..6)", "N"},
-		{ "verbose", 'v', 0, G_OPTION_ARG_NONE, &g_showStartInfo,
-			"Be verbose", NULL },
-		{ "longtime", 'z', 0, G_OPTION_ARG_NONE, &g_useFullTimeStamps,
-			"Use full RFC 3339 format timestamps", NULL },
-		{ "monotonic", 'm', 0, G_OPTION_ARG_NONE, &g_timeStampMonotonic,
-			"Include monotonic seconds in timestamp", NULL},
+		{
+			"fractional", 'f', 0, G_OPTION_ARG_INT, &g_timeStampFracSecDigits,
+			"Specify timestamp seconds decimal precision (0..6)", "N"
+		},
+		{
+			"verbose", 'v', 0, G_OPTION_ARG_NONE, &g_showStartInfo,
+			"Be verbose", NULL
+		},
+		{
+			"longtime", 'z', 0, G_OPTION_ARG_NONE, &g_useFullTimeStamps,
+			"Use full RFC 3339 format timestamps", NULL
+		},
+		{
+			"monotonic", 'm', 0, G_OPTION_ARG_NONE, &g_timeStampMonotonic,
+			"Include monotonic seconds in timestamp", NULL
+		},
 		{ NULL }
 	};
 	GError *error = NULL;
 	GOptionContext *context;
 
-	context = g_option_context_new ("- implements syslogd");
-	g_option_context_add_main_entries (context, entries, NULL);
-	if (!g_option_context_parse (context, &argc, &argv, &error))
+	context = g_option_context_new("- implements syslogd");
+	g_option_context_add_main_entries(context, entries, NULL);
+
+	if (!g_option_context_parse(context, &argc, &argv, &error))
 	{
-		if (error) {
+		if (error)
+		{
 			DbgPrint("%s: option parsing failed: %s\n", __FUNCTION__, error->message);
 			g_error_free(error);
 		}
-        ret = RESULT_PARAM_ERR;
+
+		ret = RESULT_PARAM_ERR;
 	}
-    g_option_context_free(context);
-    return ret;
+
+	g_option_context_free(context);
+	return ret;
 }
 
-gint char_array_comp_func(gconstpointer a, gconstpointer b, gpointer user_data) {
+gint char_array_comp_func(gconstpointer a, gconstpointer b, gpointer user_data)
+{
 	const gchar *ga = a;
 	const gchar *gb = b;
-	return strcmp(ga,gb);
+	return strcmp(ga, gb);
 }
 
 /**
@@ -2130,7 +2404,7 @@ static void InitConfig(void)
 	g_numContexts = 0;
 
 	memset(&g_outputConfs, 0, sizeof(g_outputConfs));
-	g_contextConfs = g_tree_new_full( char_array_comp_func, NULL, g_free, free );
+	g_contextConfs = g_tree_new_full(char_array_comp_func, NULL, g_free, free);
 
 	/* TODO : Validation for result of PmLogReadConfigs() */
 	PmLogPrvReadConfigs(ParseJsonOutputs);
@@ -2145,7 +2419,7 @@ static void InitConfig(void)
  *
  * @return
  */
-int main(int argc, char* argv[])
+int main(int argc, char *argv[])
 {
 	int           result;
 
@@ -2154,8 +2428,11 @@ int main(int argc, char* argv[])
 	InitSettings();
 
 	result = ParseParams(argc, argv);
+
 	if (result != RESULT_OK)
+	{
 		exit(EXIT_FAILURE);
+	}
 
 	DbgPrint("PmLogDaemon running...\n");
 
@@ -2169,6 +2446,7 @@ int main(int argc, char* argv[])
 
 	/* service the syslog socket */
 	result = RunSysLogD();
+
 	if (result != RESULT_OK)
 	{
 		exit(EXIT_FAILURE);

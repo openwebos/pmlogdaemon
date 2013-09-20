@@ -40,18 +40,19 @@ typedef struct
 	bool isEmpty;
 	int bufferSize;
 	int flushLevel;
-	char* buff;
-	char* nextWritePos;
+	char *buff;
+	char *nextWritePos;
 }
 PmLogRingBuffer_t;
 
 static const int RBMinBufferSize = 2048; /* Minimum is 2K */
 
-typedef void (*RBTraversalFunc)(const char* msg, gpointer data);
+typedef void (*RBTraversalFunc)(const char *msg, gpointer data);
 
-PmLogRingBuffer_t* RBNew(int bufferSize, int flushLevel);
+PmLogRingBuffer_t *RBNew(int bufferSize, int flushLevel);
 
-bool RBFlush(PmLogRingBuffer_t* rb, RBTraversalFunc flushMsgFunc, gpointer data);
-void RBWrite(PmLogRingBuffer_t* rb, const char *buffMsg, int numBytes);
+bool RBFlush(PmLogRingBuffer_t *rb, RBTraversalFunc flushMsgFunc,
+             gpointer data);
+void RBWrite(PmLogRingBuffer_t *rb, const char *buffMsg, int numBytes);
 
 #endif
