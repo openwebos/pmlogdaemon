@@ -424,8 +424,7 @@ Error:
 
 bool handle_makelogreport_callback(LSHandle *sh, LSMessage *reply, void *ctx)
 {
-	SysLogMessage(LEVEL_INFO, "MAKELOGREPORT", "%s",
-	              j_cstr_to_buffer(LSMessageGetPayload(reply)));
+	PmLogDebug(g_context, "Request to RDX for makelogreport : %s", j_cstr_to_buffer(LSMessageGetPayload(reply)));
 
 	return true;
 }
@@ -518,8 +517,7 @@ static int DoRotateLogFile(PmLogFile_t *logFileP)
 		            NULL,
 		            &lserror))
 		{
-			SysLogMessage(LEVEL_ERROR, "LSCall_ERROR", "{\"errorText\":\"%s\"}",
-			              lserror.message);
+			PmLogError(g_context, "LSCALL_ERROR", 1, PMLOGKS("errorText", lserror.message), "");
 		}
 	}
 
@@ -2276,8 +2274,7 @@ static int RunSysLogD(void)
 	g_io_channel_unref(gioch);
 
 	/* Run the main loop */
-	//PmLogDebug(g_context, "PROC_START");
-	PmLogInfo(g_context, "TEST", 1, PMLOGKS("key", "PROC_START"), "");
+	PmLogDebug(g_context, "PROC_START");
 
 	if (g_showStartInfo)
 	{
