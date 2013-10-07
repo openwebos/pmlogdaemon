@@ -118,7 +118,7 @@ void UnlockProcess(void);
 #define PMLOG_MAX_LOG_SIZE (64 * 1024 * 1024)
 
 /* arbitrary maximum number of outputs */
-#define PMLOG_MAX_NUM_OUTPUTS           32
+#define PMLOG_MAX_NUM_OUTPUTS           128
 
 /* maximum number of rotations allowed */
 #define PMLOG_MIN_NUM_ROTATIONS         1
