@@ -2082,6 +2082,77 @@ error:
 /**
 @page com_webos_pmlogd com.webos.pmlogd
 @{
+@section com_webos_pmlogd_backuplogs backuplogs
+
+make tarball which includes all files in /var/log to
+/mnt/lg/cmn_data/var/log
+
+@par Returns
+
+Name | Required | Type | Description
+-----|--------|------|----------
+returnValue | yes | Boolean | True on success, false otherwise
+@}
+*/
+/////////////////////////////////////////////////////////////////
+//                                                             //
+//            End of API documentation comment block           //
+//                                                             //
+/////////////////////////////////////////////////////////////////
+static bool backup_logs_ls(LSHandle *lsHandle, LSMessage *lsMessage, void *wd)
+{
+	LSMessageRef(lsMessage);
+
+	bool          ret_val;
+	const char    *tarball = "@WEBOS_INSTALL_LOCALSTATEDIR@/spool/rdxd/previous_boot_logs.tar.gz";
+	const char    *src_path = "@WEBOS_INSTALL_LOCALSTATEDIR@/volatile";
+	const char    *log_path = "log";
+	GError        *error = NULL;
+	jvalue_ref    reply = NULL;
+	jschema_ref   response_schema;
+
+	response_schema = jschema_parse(j_cstr_to_buffer("{}"), DOMOPT_NOOPT, NULL);
+
+	reply = jobject_create();
+
+	gchar *tar_cmd = g_strdup_printf("cd %s; tar -cvzf %s %s", src_path, tarball, log_path);
+
+	PmLogDebug(g_context, "tar_cmd : %s", tar_cmd);
+
+	system(tar_cmd); // Result value cannot be used as a validation. ls-method is not a synchronous.
+	if (g_file_test(tarball, G_FILE_TEST_EXISTS))
+	{
+		jobject_put(reply, J_CSTR_TO_JVAL("returnValue"), jboolean_create(true));
+	}
+	else
+	{
+		jobject_put(reply, J_CSTR_TO_JVAL("returnValue"), jboolean_create(false));
+	}
+
+	ret_val = LSMessageReply(lsHandle, lsMessage, jvalue_tostring(reply,
+	                         response_schema), &g_lsError);
+	if (!ret_val)
+	{
+		PmLogWarning(g_context, "LSREPLY_ERROR", 1, PMLOGKS("ErrorText",
+		             g_lsError.message), "");
+	}
+
+	LSMessageUnref(lsMessage);
+	j_release(&reply);
+	LSErrorFree(&g_lsError);
+	g_free(tar_cmd);
+
+	return (ret_val != 0);
+}
+
+/////////////////////////////////////////////////////////////////
+//                                                             //
+//            Start of API documentation comment block         //
+//                                                             //
+/////////////////////////////////////////////////////////////////
+/**
+@page com_webos_pmlogd com.webos.pmlogd
+@{
 @section com_webos_pmlogd_forcerotate forcerotate
 
 Force rotates to mainstream file. /var/log/messages
@@ -2104,9 +2175,8 @@ static bool force_rotate_ls(LSHandle *lsHandle, LSMessage *lsMessage, void *wd)
 
 	bool          ret_val;
 	PmLogFile_t  *logFileP;
-	jvalue_ref    reply = {0,};
-	jschema_ref   response_schema = jschema_parse(j_cstr_to_buffer("{}"),
-	                                DOMOPT_NOOPT, NULL);
+	jvalue_ref    reply = NULL;
+	jschema_ref   response_schema = NULL;
 
 	LSMessageRef(lsMessage);
 
@@ -2124,6 +2194,8 @@ static bool force_rotate_ls(LSHandle *lsHandle, LSMessage *lsMessage, void *wd)
 		jobject_put(reply, J_CSTR_TO_JVAL("errorText"),
 		            jstring_create("Log rotation failed"));
 	}
+
+	response_schema = jschema_parse(j_cstr_to_buffer("{}"), DOMOPT_NOOPT, NULL);
 
 	ret_val = LSMessageReply(lsHandle, lsMessage, jvalue_tostring(reply,
 	                         response_schema), &g_lsError);
@@ -2144,6 +2216,7 @@ static bool force_rotate_ls(LSHandle *lsHandle, LSMessage *lsMessage, void *wd)
 static LSMethod lsMethod_public[] =
 {
 	{ "forcerotate", force_rotate_ls },
+	{ "backuplogs", backup_logs_ls },
 	{},
 };
 
