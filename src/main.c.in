@@ -1016,6 +1016,7 @@ static const char *ParseMsgProgram(const char *msg,
 	size_t      nameLen;
 	size_t      fullLen;
 	int         index_colon = -1;
+	int         index_first_space = -1;
 
 	programFull[ 0 ] = '\0';
 	programName[ 0 ] = '\0';
@@ -1026,8 +1027,14 @@ static const char *ParseMsgProgram(const char *msg,
 	/* span characters not including ':' and whitespace */
 	nameLen = 0;
 
-	while ((*s != 0) && (*s != ':') && (!isspace(*s)))
+	while ((*s != 0) && (*s != ':'))
 	{
+		// Case of long process name which includes parameter
+		// e.g. "chrome --in-render-process ... : [pid:tid]"
+		if (isspace(*s) && index_first_space == -1)
+		{
+			index_first_space = s - msg;
+		}
 		nameLen++;
 		s++;
 	}
@@ -1056,12 +1063,19 @@ static const char *ParseMsgProgram(const char *msg,
 
 	s++;
 
+	//
+	if (index_first_space > -1)
+	{
+		nameLen = index_first_space;
+		index_colon = index_first_space;
+	}
+
 	fullLen = s - msg;
 
 	if (fullLen >= programFullBuffSize)
 	{
 		/* overflow */
-		return NULL;
+		fullLen = programFullBuffSize - 1;
 	}
 
 	memcpy(programFull, msg, fullLen);
@@ -1069,8 +1083,7 @@ static const char *ParseMsgProgram(const char *msg,
 	if (index_colon > -1)
 	{
 		programFull[ index_colon ] = ' ';  // Remove the colon and replace with space
-		programFull[ index_colon + 1 ] =
-		    '\0'; // Replace with next of the colon with NUL
+		programFull[ index_colon + 1 ] = '\0'; // Replace with next of the colon with NUL
 	}
 
 	programFull[ fullLen ] = '\0';
