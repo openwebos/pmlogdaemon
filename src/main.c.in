@@ -2118,8 +2118,9 @@ static bool backup_logs_ls(LSHandle *lsHandle, LSMessage *lsMessage, void *wd)
 
 	bool          ret_val;
 	const char    *tarball = "@WEBOS_INSTALL_LOCALSTATEDIR@/spool/rdxd/previous_boot_logs.tar.gz";
-	const char    *src_path = "@WEBOS_INSTALL_LOCALSTATEDIR@/volatile";
-	const char    *log_path = "log";
+	const char    *src_path = "@WEBOS_INSTALL_LOCALSTATEDIR@";
+	const char    *log_files = "`find log/ -type f -maxdepth 1`";
+	const char    *tar_options = "--absolute-names";
 	GError        *error = NULL;
 	jvalue_ref    reply = NULL;
 	jschema_ref   response_schema;
@@ -2128,7 +2129,7 @@ static bool backup_logs_ls(LSHandle *lsHandle, LSMessage *lsMessage, void *wd)
 
 	reply = jobject_create();
 
-	gchar *tar_cmd = g_strdup_printf("cd %s; tar -cvzf %s %s", src_path, tarball, log_path);
+	gchar *tar_cmd = g_strdup_printf("cd %s; tar -czf %s %s %s", src_path, tarball, log_files, tar_options);
 
 	PmLogDebug(g_context, "tar_cmd : %s", tar_cmd);
 
