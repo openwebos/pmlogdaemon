@@ -424,7 +424,7 @@ Error:
 
 bool handle_makelogreport_callback(LSHandle *sh, LSMessage *reply, void *ctx)
 {
-	PmLogDebug(g_context, "Request to RDX for makelogreport : %s", j_cstr_to_buffer(LSMessageGetPayload(reply)));
+	PmLogDebug(g_context, "Request to RDX for makelogreport : %s", LSMessageGetPayload(reply));
 
 	return true;
 }
