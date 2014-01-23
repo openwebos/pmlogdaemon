@@ -1,6 +1,6 @@
 # @@@LICENSE
 #
-#      Copyright (c) 2011-2013 LG Electronics, Inc.
+#      Copyright (c) 2011-2014 LG Electronics, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -69,6 +69,10 @@ endif()
 include_directories(src)
 webos_configure_header_files(src)
 webos_add_compiler_flags(ALL -Wall -Wconversion)
+
+if(ENABLE_LOGGING)
+        webos_add_compiler_flags(ALL -DPMLOGDAEMON_ENABLE_LOGGING)
+endif()
 
 file(GLOB SOURCE_FILES src/*.c)
 webos_configure_source_files(SOURCE_FILES src/main.c)
