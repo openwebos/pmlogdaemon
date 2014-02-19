@@ -75,7 +75,7 @@ if(ENABLE_LOGGING)
 endif()
 
 file(GLOB SOURCE_FILES src/*.c)
-webos_configure_source_files(SOURCE_FILES src/main.c)
+webos_configure_source_files(SOURCE_FILES src/main.c src/util.c)
 
 # Build the PmLogDaemon executable
 add_executable(PmLogDaemon ${SOURCE_FILES})
