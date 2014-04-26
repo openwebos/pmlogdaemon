@@ -89,6 +89,7 @@ enum
 
 /* maximum line length that can be handled, per RFC 3164 */
 #define MAXLINE         1024
+#define MAX_MSGID_LEN   32
 
 #define PMLODAEMON_CONTEXT "pmlogdaemon"
 
@@ -129,7 +130,7 @@ static char         g_pathLog[ PATH_MAX ];
  ***********************************************************************/
 
 static PmLogFile_t  g_logFiles[ PMLOG_MAX_NUM_OUTPUTS ];
-
+static GHashTable          *whitelist_table = NULL;
 PmLogContext g_context;
 
 /**********************************************************************
@@ -1161,6 +1162,45 @@ static const char *ParseMsgContext(const char *msg, char *contextName,
 	return s;
 }
 
+static const char *ParseMsgID(const char *msg, char *msgid,
+                                   size_t msgIDSize)
+{
+        const char *s;
+        size_t      i;
+
+        msgid[ 0 ] = 0;
+
+        s = msg;
+
+        /* span characters that are allowed for context names
+         * see PmLogLib for definition */
+        i = 0;
+
+	DbgPrint("In %s, msg is %s\n", __func__, msg);
+        while (!isspace(*s))
+        {
+                i++;
+                s++;
+        }
+
+        if (i == 0)
+        {
+		DbgPrint("In %s, returning NULL\n", __func__);
+                return NULL;
+        }
+
+        if (i >= msgIDSize)
+        {
+                /* context buff overflow! */
+                i = msgIDSize - 1;
+        }
+
+        memcpy(msgid, msg, i);
+        msgid[ i ] = 0;
+
+	DbgPrint("In %s, msgid is %s\n", __func__, msgid);
+        return s;
+}
 
 
 
@@ -1445,6 +1485,7 @@ static void LogMessage(int pri, const char *msg)
 	char            msgProgram[ 256 ];
 	char            programName[ PMLOG_PROGRAM_MAX_NAME_LENGTH + 1 ];
 	char            contextName[ PMLOG_MAX_CONTEXT_NAME_LEN + 1 ];
+	char            msgid[ MAX_MSGID_LEN + 1];
 	const char     *msgLeft;
 	const char     *msgCurr;
 	const char     *msgNext;
@@ -1572,63 +1613,84 @@ static void LogMessage(int pri, const char *msg)
 		}
 	}
 
-	/* Has ring buffer */
-	if (contextConfP->rb)
+#ifdef PRODUCTION_BUILD
+        msgNext = ParseMsgID(++msgCurr, msgid, sizeof(msgid));
+
+        char context_msgid_pair[MAXLINE];
+        context_msgid_pair[0] = '\0';   // ensures the memory is an empty string
+        strncat(context_msgid_pair, contextName, sizeof(contextName));
+        strncat(context_msgid_pair, "/", 1);
+        strncat(context_msgid_pair, msgid, sizeof(msgid));
+
+	if ((g_hash_table_lookup(whitelist_table, context_msgid_pair)) != NULL)
 	{
-		PmLogDebug(g_context, "%s: %s has RB\n", __FUNCTION__,
-		           contextConfP->contextName);
-		int lvl = pri & LOG_PRIMASK;
-
-		if (lvl <= contextConfP->rb->flushLevel)
+		DbgPrint("Whitelisted: This message can be logged %s\n", context_msgid_pair);
+#endif
+		/* Has ring buffer */
+		if (contextConfP->rb)
 		{
-			PmLogDebug(g_context, "%s: %s Flushing!\n", __FUNCTION__,
-			           contextConfP->contextName);
-			g_tree_foreach(g_contextConfs, FlushNotMe, contextConfP);
+			PmLogDebug(g_context, "%s: %s has RB\n", __FUNCTION__,
+		                   contextConfP->contextName);
+			int lvl = pri & LOG_PRIMASK;
 
-			timeStamp = MakeMessageTimestamp();
-			char priStr2[20];
-			FormatPri(LOG_SYSLOG | LOG_INFO, priStr2, sizeof(priStr2));
-			gchar *flushMsg =
-			    g_strdup_printf("%s %s pmsyslogd: {%s}: ------ Flushing ring buffer for %s message ------\n",
-			                    timeStamp,
-			                    priStr2,
-			                    contextConfP->contextName,
-			                    priStr);
-			g_free(timeStamp);
-			OutputMessage(contextConfP, pri, "pmsyslogd", flushMsg);
+			if (lvl <= contextConfP->rb->flushLevel)
+			{
+				PmLogDebug(g_context, "%s: %s Flushing!\n", __FUNCTION__,
+			                   contextConfP->contextName);
+				g_tree_foreach(g_contextConfs, FlushNotMe, contextConfP);
 
-			/* Flush */
-			RBFlush(contextConfP->rb, FlushMessage, contextConfP);
-			OutputMessage(contextConfP, pri, programName, outMsg->str);
-			g_free(flushMsg);
+				timeStamp = MakeMessageTimestamp();
+				char priStr2[20];
+				FormatPri(LOG_SYSLOG | LOG_INFO, priStr2, sizeof(priStr2));
+				gchar *flushMsg =
+				    g_strdup_printf("%s %s pmsyslogd: {%s}: ------ Flushing ring buffer for %s message ------\n",
+				                    timeStamp,
+				                    priStr2,
+			                            contextConfP->contextName,
+				                    priStr);
+				g_free(timeStamp);
+				OutputMessage(contextConfP, pri, "pmsyslogd", flushMsg);
 
-			timeStamp = MakeMessageTimestamp();
-			flushMsg =
-			    g_strdup_printf("%s %s pmsyslogd: {%s}: ------ Done flushing ------\n",
-			                    timeStamp,
-			                    priStr2,
-			                    contextConfP->contextName);
-			OutputMessage(contextConfP, pri, "pmsyslogd", flushMsg);
-			g_free(timeStamp);
-			g_free(flushMsg);
+				/* Flush */
+				RBFlush(contextConfP->rb, FlushMessage, contextConfP);
+				OutputMessage(contextConfP, pri, programName, outMsg->str);
+				g_free(flushMsg);
 
+				timeStamp = MakeMessageTimestamp();
+				flushMsg =
+				    g_strdup_printf("%s %s pmsyslogd: {%s}: ------ Done flushing ------\n",
+				                    timeStamp,
+			                            priStr2,
+			                            contextConfP->contextName);
+				OutputMessage(contextConfP, pri, "pmsyslogd", flushMsg);
+				g_free(timeStamp);
+				g_free(flushMsg);
+
+			}
+			else
+			{
+				PmLogDebug(g_context, "%s: %s buffering!\n", __FUNCTION__,
+				           contextConfP->contextName);
+				/* buffer */
+				char buffMsg[contextConfP->rb->bufferSize];
+				snprintf(buffMsg, sizeof(buffMsg) - 1, "%d/%s/%s", pri, programName,
+				         outMsg->str);
+				buffMsg[sizeof(buffMsg) - 1 ] = '\0';
+				RBWrite(contextConfP->rb, buffMsg, strlen(buffMsg) + 1);
+			}
 		}
 		else
 		{
-			PmLogDebug(g_context, "%s: %s buffering!\n", __FUNCTION__,
-			           contextConfP->contextName);
-			/* buffer */
-			char buffMsg[contextConfP->rb->bufferSize];
-			snprintf(buffMsg, sizeof(buffMsg) - 1, "%d/%s/%s", pri, programName,
-			         outMsg->str);
-			buffMsg[sizeof(buffMsg) - 1 ] = '\0';
-			RBWrite(contextConfP->rb, buffMsg, strlen(buffMsg) + 1);
+			OutputMessage(contextConfP, pri, programName, outMsg->str);
 		}
+
+#ifdef PRODUCTION_BUILD
 	}
 	else
 	{
-		OutputMessage(contextConfP, pri, programName, outMsg->str);
+		DbgPrint("Blacklisted: Restrict logging this message %s\n", context_msgid_pair);
 	}
+#endif
 
 	g_string_free(outMsg, true);
 
@@ -2409,6 +2471,64 @@ static void InitConfig(void)
 }
 
 /**
+ * @brief InitConfig
+ * Initial setup of whitelist table
+ */
+static gboolean LoadWhitelist(const char *filename, GError **error)
+{
+    gboolean result = TRUE;
+    gchar *rawwhitelist = NULL;
+    gchar **wlentry = NULL;
+    gchar **whitelist_buffer = NULL;
+
+    whitelist_table = g_hash_table_new(g_str_hash, g_str_equal);
+    g_assert(whitelist_table != NULL);
+
+    DbgPrint("Loading whitelist file\n");
+    if (g_file_get_contents(filename, &rawwhitelist, NULL, error))
+    {
+        g_assert(rawwhitelist != NULL);
+        whitelist_buffer = g_strsplit(rawwhitelist, "\n", 0);
+        g_assert(whitelist_buffer != NULL);
+
+        for (wlentry = whitelist_buffer; *wlentry != NULL; wlentry++)
+        {
+            if (strlen(*wlentry) != 0)
+            {
+                g_strstrip(*wlentry); // Remove leading and trailing white space
+
+                gchar *sep = NULL;
+                for (sep = *wlentry; *sep != '\0'; ++sep)
+                {
+                    if (*sep == ' ' || *sep == '\t')
+                    {
+                        *sep++ = '/';       // ensure it's a space
+                        g_strchug(sep);     // remove any extra whitespace
+                        break;
+                    }
+                }
+
+                if (*sep == '\0')
+                    continue;
+
+                // Now the entry matches "<context> <msg_id>" with no leading or
+                // trailing white space, and a single space between them
+                if (strlen(*wlentry) != 0)
+                    g_hash_table_add(whitelist_table, *wlentry);
+            }
+        }
+        g_free(rawwhitelist);
+    }
+    else
+    {
+        result = FALSE;
+    }
+
+    return result;
+}
+
+
+/**
  * @brief main
  *
  * @param argc
@@ -2419,6 +2539,7 @@ static void InitConfig(void)
 int main(int argc, char *argv[])
 {
 	int           result;
+	GError *error = NULL;
 
 	PmLogGetContext(PMLODAEMON_CONTEXT, &g_context);
 
@@ -2434,6 +2555,21 @@ int main(int argc, char *argv[])
 	DbgPrint("PmLogDaemon running...\n");
 
 	InitConfig();
+
+#ifdef PRODUCTION_BUILD
+	if (!LoadWhitelist("@WEBOS_INSTALL_SYSCONFDIR@/PmLogDaemon/whitelist.txt", &error))
+	{
+		if (error != NULL)
+		{
+			DbgPrint("Failed to load whitelist file: %s\n", error->message);
+			g_error_free(error);
+		}
+		else
+		{
+			DbgPrint("Failed for unknown reason\n");
+		}
+        }
+#endif
 
 	/* make sure we aren't already running */
 	if (!LockProcess("PmLogDaemon"))
