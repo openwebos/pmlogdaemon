@@ -70,6 +70,11 @@ include_directories(src)
 webos_configure_header_files(src)
 webos_add_compiler_flags(ALL -Wall -Wconversion)
 
+set(PRODUCTION_BUILD FALSE CACHE BOOL "Restrict production logging to whitelist logs")
+if(PRODUCTION_BUILD)
+        webos_add_compiler_flags(ALL -DPRODUCTION_BUILD)
+endif()
+
 if(ENABLE_LOGGING)
         webos_add_compiler_flags(ALL -DPMLOGDAEMON_ENABLE_LOGGING)
 endif()
@@ -92,5 +97,6 @@ target_link_libraries(PmLogDaemon
 webos_build_daemon()
 webos_build_system_bus_files()
 install(PROGRAMS scripts/public/show_disk_usage.sh DESTINATION @WEBOS_INSTALL_DATADIR@/PmLogDaemon)
+install(FILES files/whitelist.txt DESTINATION @WEBOS_INSTALL_SYSCONFDIR@/PmLogDaemon/)
 
 webos_config_build_doxygen(doc Doxyfile)
