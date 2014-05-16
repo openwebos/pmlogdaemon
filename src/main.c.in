@@ -500,7 +500,7 @@ static int DoRotateLogFile(PmLogFile_t *logFileP)
 		snprintf(logReportCmd, sizeof(logReportCmd), "{\"filepath\":\"%s.gz\"}",
 		         newPath);
 
-		if (!LSCall(g_lsServiceHandle,
+		if (!LSCallOneReply(g_lsServiceHandle,
 		            "luna://com.webos.rdxd/makelogreport",
 		            logReportCmd,
 		            handle_makelogreport_callback,
