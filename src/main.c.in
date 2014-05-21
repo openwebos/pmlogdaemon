@@ -89,6 +89,7 @@ enum
 
 /* maximum line length that can be handled, per RFC 3164 */
 #define MAXLINE         1024
+#define MAX_MSGID_LEN   32
 
 #define PMLODAEMON_CONTEXT "pmlogdaemon"
 
@@ -129,16 +130,12 @@ static char         g_pathLog[ PATH_MAX ];
  ***********************************************************************/
 
 static PmLogFile_t  g_logFiles[ PMLOG_MAX_NUM_OUTPUTS ];
-
-static bool         g_captureJSExceptions;
-
+static GHashTable          *whitelist_table = NULL;
 PmLogContext g_context;
 
 /**********************************************************************
  *  Function declarations
  **********************************************************************/
-static int ScanRotatedFile(const char *filename);
-
 static LSHandle *g_lsServiceHandle = NULL;
 static LSError g_lsError;
 
@@ -490,11 +487,6 @@ static int DoRotateLogFile(PmLogFile_t *logFileP)
 		PmLogDebug(g_context, "RotateLogFile: rename error: %s\n", strerror(err));
 	}
 
-	if (g_captureJSExceptions)
-	{
-		ScanRotatedFile(newPath);
-	}
-
 	/* compress the log file
 	   TODO: what should we do if it fails to compress the file? */
 	CompressFile(newPath);
@@ -509,7 +501,7 @@ static int DoRotateLogFile(PmLogFile_t *logFileP)
 		snprintf(logReportCmd, sizeof(logReportCmd), "{\"filepath\":\"%s.gz\"}",
 		         newPath);
 
-		if (!LSCall(g_lsServiceHandle,
+		if (!LSCallOneReply(g_lsServiceHandle,
 		            "luna://com.webos.rdxd/makelogreport",
 		            logReportCmd,
 		            handle_makelogreport_callback,
@@ -523,73 +515,6 @@ static int DoRotateLogFile(PmLogFile_t *logFileP)
 
 	LSErrorFree(&lserror);
 
-	return 1;
-}
-
-#define LINE_BUFFER_SIZE                1024
-#define COMPONENT_BUFFER_SIZE           128
-static int
-ScanRotatedFile(const char *filename)
-{
-	FILE *f = NULL;
-	char line_buffer[LINE_BUFFER_SIZE];
-	char component[COMPONENT_BUFFER_SIZE];
-	char *backtrace = NULL;
-	char *temp = NULL;
-	int comp_len = 0;
-
-	/* check if this is /var/log/messages.0 */
-	if (strcmp(filename, ROTATED_LOG_FILE_PATH) != 0)
-	{
-		return 0;
-	}
-
-	f = fopen(filename, "r");
-
-	if (f == NULL)
-	{
-		return -1;
-	}
-
-	while (1)
-	{
-		memset(line_buffer, 0, LINE_BUFFER_SIZE);
-		fgets(line_buffer, LINE_BUFFER_SIZE, f);
-
-		if (ferror(f) || (feof(f)))
-		{
-			break;
-		}
-
-		backtrace = strstr(line_buffer, "EXCEPTION");
-
-		if (backtrace != NULL)
-		{
-			memset(component, 0, COMPONENT_BUFFER_SIZE);
-			temp = strstr(line_buffer, "LunaSysMgrJS");
-
-			if (temp == NULL)
-			{
-				continue;
-			}
-
-			temp += 15; /* get to the right place for the component name */
-			comp_len = (int)(strchr(temp, ':') - temp);
-			strncpy(component, temp, comp_len);
-			component[comp_len] = '\0';
-
-			RdxReportMetadata md = create_rdx_report_metadata();
-			rdx_report_metadata_set_component(md, component);
-			rdx_report_metadata_set_cause(md, "JavaScript Exception");
-			rdx_report_metadata_set_detail(md, "Exception");
-			rdx_report_metadata_set_payload_filename(md,
-			        "exception.txt"); /* defaults to "payload" */
-			rdx_make_report(md, backtrace);
-			destroy_rdx_report_metadata(md);
-		}
-	}
-
-	fclose(f);
 	return 1;
 }
 
@@ -1237,6 +1162,45 @@ static const char *ParseMsgContext(const char *msg, char *contextName,
 	return s;
 }
 
+static const char *ParseMsgID(const char *msg, char *msgid,
+                                   size_t msgIDSize)
+{
+        const char *s;
+        size_t      i;
+
+        msgid[ 0 ] = 0;
+
+        s = msg;
+
+        /* span characters that are allowed for context names
+         * see PmLogLib for definition */
+        i = 0;
+
+	DbgPrint("In %s, msg is %s\n", __func__, msg);
+        while (!isspace(*s))
+        {
+                i++;
+                s++;
+        }
+
+        if (i == 0)
+        {
+		DbgPrint("In %s, returning NULL\n", __func__);
+                return NULL;
+        }
+
+        if (i >= msgIDSize)
+        {
+                /* context buff overflow! */
+                i = msgIDSize - 1;
+        }
+
+        memcpy(msgid, msg, i);
+        msgid[ i ] = 0;
+
+	DbgPrint("In %s, msgid is %s\n", __func__, msgid);
+        return s;
+}
 
 
 
@@ -1521,6 +1485,7 @@ static void LogMessage(int pri, const char *msg)
 	char            msgProgram[ 256 ];
 	char            programName[ PMLOG_PROGRAM_MAX_NAME_LENGTH + 1 ];
 	char            contextName[ PMLOG_MAX_CONTEXT_NAME_LEN + 1 ];
+	char            msgid[ MAX_MSGID_LEN + 1];
 	const char     *msgLeft;
 	const char     *msgCurr;
 	const char     *msgNext;
@@ -1648,63 +1613,84 @@ static void LogMessage(int pri, const char *msg)
 		}
 	}
 
-	/* Has ring buffer */
-	if (contextConfP->rb)
+#ifdef PRODUCTION_BUILD
+        msgNext = ParseMsgID(++msgCurr, msgid, sizeof(msgid));
+
+        char context_msgid_pair[MAXLINE];
+        context_msgid_pair[0] = '\0';   // ensures the memory is an empty string
+        strncat(context_msgid_pair, contextName, sizeof(contextName));
+        strncat(context_msgid_pair, "/", 1);
+        strncat(context_msgid_pair, msgid, sizeof(msgid));
+
+	if ((g_hash_table_lookup(whitelist_table, context_msgid_pair)) != NULL)
 	{
-		PmLogDebug(g_context, "%s: %s has RB\n", __FUNCTION__,
-		           contextConfP->contextName);
-		int lvl = pri & LOG_PRIMASK;
-
-		if (lvl <= contextConfP->rb->flushLevel)
+		DbgPrint("Whitelisted: This message can be logged %s\n", context_msgid_pair);
+#endif
+		/* Has ring buffer */
+		if (contextConfP->rb)
 		{
-			PmLogDebug(g_context, "%s: %s Flushing!\n", __FUNCTION__,
-			           contextConfP->contextName);
-			g_tree_foreach(g_contextConfs, FlushNotMe, contextConfP);
+			PmLogDebug(g_context, "%s: %s has RB\n", __FUNCTION__,
+		                   contextConfP->contextName);
+			int lvl = pri & LOG_PRIMASK;
 
-			timeStamp = MakeMessageTimestamp();
-			char priStr2[20];
-			FormatPri(LOG_SYSLOG | LOG_INFO, priStr2, sizeof(priStr2));
-			gchar *flushMsg =
-			    g_strdup_printf("%s %s pmsyslogd: {%s}: ------ Flushing ring buffer for %s message ------\n",
-			                    timeStamp,
-			                    priStr2,
-			                    contextConfP->contextName,
-			                    priStr);
-			g_free(timeStamp);
-			OutputMessage(contextConfP, pri, "pmsyslogd", flushMsg);
+			if (lvl <= contextConfP->rb->flushLevel)
+			{
+				PmLogDebug(g_context, "%s: %s Flushing!\n", __FUNCTION__,
+			                   contextConfP->contextName);
+				g_tree_foreach(g_contextConfs, FlushNotMe, contextConfP);
 
-			/* Flush */
-			RBFlush(contextConfP->rb, FlushMessage, contextConfP);
-			OutputMessage(contextConfP, pri, programName, outMsg->str);
-			g_free(flushMsg);
+				timeStamp = MakeMessageTimestamp();
+				char priStr2[20];
+				FormatPri(LOG_SYSLOG | LOG_INFO, priStr2, sizeof(priStr2));
+				gchar *flushMsg =
+				    g_strdup_printf("%s %s pmsyslogd: {%s}: ------ Flushing ring buffer for %s message ------\n",
+				                    timeStamp,
+				                    priStr2,
+			                            contextConfP->contextName,
+				                    priStr);
+				g_free(timeStamp);
+				OutputMessage(contextConfP, pri, "pmsyslogd", flushMsg);
 
-			timeStamp = MakeMessageTimestamp();
-			flushMsg =
-			    g_strdup_printf("%s %s pmsyslogd: {%s}: ------ Done flushing ------\n",
-			                    timeStamp,
-			                    priStr2,
-			                    contextConfP->contextName);
-			OutputMessage(contextConfP, pri, "pmsyslogd", flushMsg);
-			g_free(timeStamp);
-			g_free(flushMsg);
+				/* Flush */
+				RBFlush(contextConfP->rb, FlushMessage, contextConfP);
+				OutputMessage(contextConfP, pri, programName, outMsg->str);
+				g_free(flushMsg);
 
+				timeStamp = MakeMessageTimestamp();
+				flushMsg =
+				    g_strdup_printf("%s %s pmsyslogd: {%s}: ------ Done flushing ------\n",
+				                    timeStamp,
+			                            priStr2,
+			                            contextConfP->contextName);
+				OutputMessage(contextConfP, pri, "pmsyslogd", flushMsg);
+				g_free(timeStamp);
+				g_free(flushMsg);
+
+			}
+			else
+			{
+				PmLogDebug(g_context, "%s: %s buffering!\n", __FUNCTION__,
+				           contextConfP->contextName);
+				/* buffer */
+				char buffMsg[contextConfP->rb->bufferSize];
+				snprintf(buffMsg, sizeof(buffMsg) - 1, "%d/%s/%s", pri, programName,
+				         outMsg->str);
+				buffMsg[sizeof(buffMsg) - 1 ] = '\0';
+				RBWrite(contextConfP->rb, buffMsg, strlen(buffMsg) + 1);
+			}
 		}
 		else
 		{
-			PmLogDebug(g_context, "%s: %s buffering!\n", __FUNCTION__,
-			           contextConfP->contextName);
-			/* buffer */
-			char buffMsg[contextConfP->rb->bufferSize];
-			snprintf(buffMsg, sizeof(buffMsg) - 1, "%d/%s/%s", pri, programName,
-			         outMsg->str);
-			buffMsg[sizeof(buffMsg) - 1 ] = '\0';
-			RBWrite(contextConfP->rb, buffMsg, strlen(buffMsg) + 1);
+			OutputMessage(contextConfP, pri, programName, outMsg->str);
 		}
+
+#ifdef PRODUCTION_BUILD
 	}
 	else
 	{
-		OutputMessage(contextConfP, pri, programName, outMsg->str);
+		DbgPrint("Blacklisted: Restrict logging this message %s\n", context_msgid_pair);
 	}
+#endif
 
 	g_string_free(outMsg, true);
 
@@ -2370,19 +2356,6 @@ static int RunSysLogD(void)
 		LogConfigInfo();
 	}
 
-	g_captureJSExceptions = false;
-#if 0
-	// TODO: We may need the equivalnet of this in the production code
-
-	/* Before initializing, check to see that we are pointed to the QA server so we don't overload production with JS crashes */
-	if (g_file_test("/usr/share/omadm/internal", G_FILE_TEST_EXISTS))
-	{
-		SysLogMessage(LEVEL_INFO, "", "Pointed to QA, enabling JS RDX scrape");
-		g_captureJSExceptions = true;
-	}
-
-#endif
-
 	lsResult = register_luna_service(mainLoop);
 	PmLogDebug(g_context, "LSRESITER_SERVICE result : %s",
 	           lsResult ? "true" : "false");
@@ -2498,6 +2471,64 @@ static void InitConfig(void)
 }
 
 /**
+ * @brief InitConfig
+ * Initial setup of whitelist table
+ */
+static gboolean LoadWhitelist(const char *filename, GError **error)
+{
+    gboolean result = TRUE;
+    gchar *rawwhitelist = NULL;
+    gchar **wlentry = NULL;
+    gchar **whitelist_buffer = NULL;
+
+    whitelist_table = g_hash_table_new(g_str_hash, g_str_equal);
+    g_assert(whitelist_table != NULL);
+
+    DbgPrint("Loading whitelist file\n");
+    if (g_file_get_contents(filename, &rawwhitelist, NULL, error))
+    {
+        g_assert(rawwhitelist != NULL);
+        whitelist_buffer = g_strsplit(rawwhitelist, "\n", 0);
+        g_assert(whitelist_buffer != NULL);
+
+        for (wlentry = whitelist_buffer; *wlentry != NULL; wlentry++)
+        {
+            if (strlen(*wlentry) != 0)
+            {
+                g_strstrip(*wlentry); // Remove leading and trailing white space
+
+                gchar *sep = NULL;
+                for (sep = *wlentry; *sep != '\0'; ++sep)
+                {
+                    if (*sep == ' ' || *sep == '\t')
+                    {
+                        *sep++ = '/';       // ensure it's a space
+                        g_strchug(sep);     // remove any extra whitespace
+                        break;
+                    }
+                }
+
+                if (*sep == '\0')
+                    continue;
+
+                // Now the entry matches "<context> <msg_id>" with no leading or
+                // trailing white space, and a single space between them
+                if (strlen(*wlentry) != 0)
+                    g_hash_table_add(whitelist_table, *wlentry);
+            }
+        }
+        g_free(rawwhitelist);
+    }
+    else
+    {
+        result = FALSE;
+    }
+
+    return result;
+}
+
+
+/**
  * @brief main
  *
  * @param argc
@@ -2508,6 +2539,7 @@ static void InitConfig(void)
 int main(int argc, char *argv[])
 {
 	int           result;
+	GError *error = NULL;
 
 	PmLogGetContext(PMLODAEMON_CONTEXT, &g_context);
 
@@ -2523,6 +2555,21 @@ int main(int argc, char *argv[])
 	DbgPrint("PmLogDaemon running...\n");
 
 	InitConfig();
+
+#ifdef PRODUCTION_BUILD
+	if (!LoadWhitelist("@WEBOS_INSTALL_SYSCONFDIR@/PmLogDaemon/whitelist.txt", &error))
+	{
+		if (error != NULL)
+		{
+			DbgPrint("Failed to load whitelist file: %s\n", error->message);
+			g_error_free(error);
+		}
+		else
+		{
+			DbgPrint("Failed for unknown reason\n");
+		}
+        }
+#endif
 
 	/* make sure we aren't already running */
 	if (!LockProcess("PmLogDaemon"))
