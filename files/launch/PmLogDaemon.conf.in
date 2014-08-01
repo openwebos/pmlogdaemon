@@ -18,7 +18,7 @@
 
 description "@WEBOS_PROJECT_SUMMARY@"
 
-start on init-boot-done
+start on stopped mount-readonly-volatile
 
 respawn
 
