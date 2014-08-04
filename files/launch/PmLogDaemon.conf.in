@@ -18,7 +18,7 @@
 
 description "@WEBOS_PROJECT_SUMMARY@"
 
-start on stopped mount-readonly-volatile
+start on ls-hubd_public-ready
 
 respawn
 
