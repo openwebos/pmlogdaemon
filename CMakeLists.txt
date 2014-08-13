@@ -75,6 +75,8 @@ if(PRODUCTION_BUILD)
         webos_add_compiler_flags(ALL -DPRODUCTION_BUILD)
 endif()
 
+set(ENABLE_LOGGING TRUE CACHE BOOL "Enable logging")
+
 if(ENABLE_LOGGING)
         webos_add_compiler_flags(ALL -DPMLOGDAEMON_ENABLE_LOGGING)
 endif()
