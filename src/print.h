@@ -50,8 +50,13 @@
  {                                                       \
      fprintf(stdout, COMPONENT_PREFIX __VA_ARGS__);      \
  }
+#define ErrPrint(...) \
+ {                                                       \
+     fprintf(stderr, COMPONENT_PREFIX __VA_ARGS__);      \
+ }
 #else
 #define DbgPrint(...)
+#define ErrPrint(...)
 #endif
 
 #endif /* PMLOGDAEMON_PRINT_H */
