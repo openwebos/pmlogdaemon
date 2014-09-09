@@ -1659,6 +1659,9 @@ static void LogMessage(int pri, const char *msg)
 	char            msgProgram[ 256 ];
 	char            programName[ PMLOG_PROGRAM_MAX_NAME_LENGTH + 1 ];
 	char            contextName[ PMLOG_MAX_CONTEXT_NAME_LEN + 1 ];
+#ifdef PRODUCTION_BUILD
+	char            msgid[ MAX_MSGID_LEN + 1];
+#endif
 	const char     *msgLeft;
 	const char     *msgCurr;
 	const char     *msgNext;
@@ -2691,6 +2694,7 @@ int main(int argc, char *argv[])
 	InitConfig();
 
 #ifdef PRODUCTION_BUILD
+	GError *error = NULL;
 	if (!LoadWhitelist("@WEBOS_INSTALL_SYSCONFDIR@/PmLogDaemon/whitelist.txt", &error))
 	{
 		if (error != NULL)
