@@ -251,7 +251,7 @@ __attribute__((format(printf, 2, 3)));
 #define SysLogMessage(level, msgID, ...) \
         _SysLogMessage(level, PMLOGD_NAME ":" " " PMLOG_IDENTIFIER " [] " PMLOGD_CONTEXT " " msgID " " __VA_ARGS__);
 
-#define ROTATED_LOG_FILE_PATH           "@WEBOS_INSTALL_LOGDIR@/messages.0"
+#define ROTATED_LOG_FILE_PATH           WEBOS_INSTALL_LOGDIR "/messages.0"
 
 /**
  * @brief ParseRuleFacility
@@ -896,7 +896,7 @@ static gboolean FreeDiskSpace(gpointer userdata)
 	gchar *file_name = NULL;
 	GError *gerr = NULL;
 
-	if (!g_spawn_command_line_sync("@WEBOS_INSTALL_DATADIR@/PmLogDaemon/show_disk_usage.sh @WEBOS_INSTALL_LOGDIR@", &file_name, NULL, NULL, &gerr))
+	if (!g_spawn_command_line_sync(WEBOS_INSTALL_DATADIR "/PmLogDaemon/show_disk_usage.sh " WEBOS_INSTALL_LOGDIR, &file_name, NULL, NULL, &gerr))
 	{
 		ErrPrint("SPAWN_FAILED ErrorText %s", gerr->message);
 		g_error_free(gerr);
@@ -916,19 +916,19 @@ static gboolean FreeDiskSpace(gpointer userdata)
 
 		RdxReportMetadata md = create_rdx_report_metadata();
 		rdx_report_metadata_set_component(md, "syslog");
-		rdx_report_metadata_set_cause(md, "@WEBOS_INSTALL_LOGDIR@ full");
-		rdx_report_metadata_set_detail(md, "@WEBOS_INSTALL_LOGDIR@ full");
+		rdx_report_metadata_set_cause(md, WEBOS_INSTALL_LOGDIR " full");
+		rdx_report_metadata_set_detail(md, WEBOS_INSTALL_LOGDIR " full");
 
 		if (!rdx_make_report_from_file(md, file_name))
 		{
 			/* more aggressive cleanup */
 			PmLogDebug(g_context, "%s: couldn't create low disk space report after clearing logs.. Kill 'em all!\n", __func__);
-			system("/bin/rm -rf @WEBOS_INSTALL_LOGDIR@/* @WEBOS_INSTALL_LOGDIR@/.*");
+			system("/bin/rm -rf " WEBOS_INSTALL_LOGDIR "/* " WEBOS_INSTALL_LOGDIR "/.*");
 			system("/usr/bin/pkill -SIGHUP rdxd"); /* restart rdxd */
 
 			if (!rdx_make_report_from_file(md, file_name))
 			{
-				PmLogDebug(g_context, "%s: still couldnt make report after nuking @WEBOS_INSTALL_LOGDIR@!\n", __func__);
+				PmLogDebug(g_context, "%s: still couldnt make report after nuking " WEBOS_INSTALL_LOGDIR "!\n", __func__);
 			}
 		}
 
@@ -1659,6 +1659,9 @@ static void LogMessage(int pri, const char *msg)
 	char            msgProgram[ 256 ];
 	char            programName[ PMLOG_PROGRAM_MAX_NAME_LENGTH + 1 ];
 	char            contextName[ PMLOG_MAX_CONTEXT_NAME_LEN + 1 ];
+#ifdef PRODUCTION_BUILD
+	char            msgid[ MAX_MSGID_LEN + 1];
+#endif
 	const char     *msgLeft;
 	const char     *msgCurr;
 	const char     *msgNext;
@@ -2229,8 +2232,8 @@ static bool backup_logs_ls(LSHandle *lsHandle, LSMessage *lsMessage, void *wd)
 	LSMessageRef(lsMessage);
 
 	bool          ret_val;
-	const char    *tarball = "@WEBOS_INSTALL_LOCALSTATEDIR@/spool/rdxd/previous_boot_logs.tar.gz";
-	const char    *src_path = "@WEBOS_INSTALL_LOCALSTATEDIR@";
+	const char    *tarball = WEBOS_INSTALL_LOCALSTATEDIR "/spool/rdxd/previous_boot_logs.tar.gz";
+	const char    *src_path = WEBOS_INSTALL_LOCALSTATEDIR;
 	const char    *log_files = "`find log/ -type f -maxdepth 1`";
 	const char    *tar_options = "--absolute-names";
 	jvalue_ref    reply = NULL;
@@ -2691,7 +2694,8 @@ int main(int argc, char *argv[])
 	InitConfig();
 
 #ifdef PRODUCTION_BUILD
-	if (!LoadWhitelist("@WEBOS_INSTALL_SYSCONFDIR@/PmLogDaemon/whitelist.txt", &error))
+	GError *error = NULL;
+	if (!LoadWhitelist(WEBOS_INSTALL_SYSCONFDIR "/PmLogDaemon/whitelist.txt", &error))
 	{
 		if (error != NULL)
 		{

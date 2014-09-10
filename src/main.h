@@ -39,7 +39,7 @@
 #include "ring.h"
 #include "print.h"
 
-#define CONFIG_DIR "@WEBOS_INSTALL_SYSCONFDIR@/pmlog.d"
+#define CONFIG_DIR WEBOS_INSTALL_SYSCONFDIR "/pmlog.d"
 
 #define PMLOGD_NAME     "PmLogDaemon"
 #define PMLOGD_CONTEXT  "pmlogdaemon"
@@ -104,7 +104,7 @@ void UnlockProcess(void);
 //#define PMLOGDAEMON_FEATURE_REMOTE_LOG
 
 /* default path for stdlog */
-#define DEFAULT_LOG_FILE_PATH           "@WEBOS_INSTALL_LOGDIR@/messages"
+#define DEFAULT_LOG_FILE_PATH           WEBOS_INSTALL_LOGDIR "/messages"
 
 /* reasonable small defaults */
 #define PMLOG_DEFAULT_LOG_SIZE          (200 * 1024)

@@ -66,8 +66,9 @@ if(NOT ZLIB_FOUND)
         message(FATAL_ERROR "ZLIB not found!")
 endif()
 
+webos_include_install_paths()
+
 include_directories(src)
-webos_configure_header_files(src)
 webos_add_compiler_flags(ALL -Wall -Wconversion)
 
 set(PRODUCTION_BUILD FALSE CACHE BOOL "Restrict production logging to whitelist logs")
@@ -81,8 +82,11 @@ if(ENABLE_LOGGING)
         webos_add_compiler_flags(ALL -DPMLOGDAEMON_ENABLE_LOGGING)
 endif()
 
-file(GLOB SOURCE_FILES src/*.c)
-webos_configure_source_files(SOURCE_FILES src/main.c src/util.c)
+set(SOURCE_FILES
+    src/main.c
+    src/ring.c
+    src/config.c
+    src/util.c)
 
 # Build the PmLogDaemon executable
 add_executable(PmLogDaemon ${SOURCE_FILES})
