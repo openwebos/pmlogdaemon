@@ -104,6 +104,8 @@ enum
 
 #define PMLOGDAEMON_FILE_ROTATION_PATTERN "%s.%d.gz"
 
+#define ROTATION_SUBSCRIPTION_KEY "rotation"
+
 /***********************************************************************
  * globals settings
  ***********************************************************************/
@@ -129,6 +131,10 @@ static char         g_pathLog[ PATH_MAX ];
 /***********************************************************************
  * globals
  ***********************************************************************/
+
+/* counter for rotation subscriptions. Subscriber manage rotated log file
+ * by himself, so we allow ony 1 or none subscribers. */
+static int          g_haveRotSubscription;
 
 static PmLogFile_t  g_logFiles[ PMLOG_MAX_NUM_OUTPUTS ];
 static GHashTable          *whitelist_table = NULL;
@@ -417,8 +423,6 @@ static int myremove(const char *filename)
 	return err;
 }
 
-
-
 /**
  * @brief CompressFile
  *
@@ -428,10 +432,11 @@ static int myremove(const char *filename)
  *
  * @param infilename
  *
- * @return 0 on success, errno on failure
+ * @return true if succeeded, else false
  */
-static int CompressFile(const char *infilename)
+static bool CompressFile(gpointer userdata)
 {
+	gchar *infilename = (gchar*)userdata;
 	char *outfilename = g_strconcat(infilename, ".gz", NULL);
 	char inbuffer[128];
 	size_t num_read = 0;
@@ -441,6 +446,7 @@ static int CompressFile(const char *infilename)
 	int err = 0;
 	gzFile outfile = NULL;
 	FILE *infile = NULL;
+	bool result = false;
 
 	if (!outfilename)
 	{
@@ -461,7 +467,6 @@ static int CompressFile(const char *infilename)
 	}
 
 	outfile = gzopen(outfilename, "wb");
-
 	if (outfile == Z_NULL)
 	{
 		err = EIO;
@@ -474,7 +479,7 @@ static int CompressFile(const char *infilename)
 	while ((num_read = fread(inbuffer, (size_t)1, sizeof(inbuffer), infile)) > 0)
 	{
 		total_read += num_read;
-		num_written = gzwrite(outfile, inbuffer, num_read);
+		num_written = gzwrite(outfile, inbuffer, (unsigned)num_read);
 
 		if (num_written != num_read)
 		{
@@ -488,13 +493,22 @@ static int CompressFile(const char *infilename)
 
 	/* delete old file */
 	err = myremove(infilename);
+	if (err != 0)
+	{
+		PmLogError(g_context, "CMP_RM_FILE", 1,
+		           PMLOGKS("ErrorText", strerror(err)),
+		           "Failed to remove source file after compression");
+	}
 
 	PmLogDebug(g_context,
 	           "CompressFile: Read %lu bytes, Wrote %lu bytes, Compression factor %4.2f%%\n",
 	           total_read, total_written,
-	           (1.0 - total_written * 1.0 / total_read) * 100.0);
+	           (1.0 - (double)total_written / (double)total_read) * 100.0);
+
+	result = true;
 
 Error:
+	g_free(infilename);
 
 	if (outfilename)
 	{
@@ -511,114 +525,150 @@ Error:
 		gzclose(outfile);
 	}
 
-	return err;
+	return result;
 }
 
-bool handle_makelogreport_callback(LSHandle *sh, LSMessage *reply, void *ctx)
+/**
+ * @brief DoNotifySubscribers
+ *
+ * Notify rotation subscribers with log 'filename' in payload.
+ *
+ * @param userdata
+ *
+ * @return true if succeeded, else false
+ */
+
+static bool DoNotifySubscribers(gpointer userdata)
 {
-	PmLogDebug(g_context, "Request to RDX for makelogreport : %s", LSMessageGetPayload(reply));
-
-	return true;
-}
-
-static gboolean DoCompressAndNotify(gpointer userdata)
-{
-	char logReportCmd[PATH_MAX + 128] = {0,};
-
+	bool result = true;
 	gchar *newPath = (gchar*)userdata;
-
-	/* compress the log file
-	   TODO: what should we do if it fails to compress the file? */
-	CompressFile(newPath);
 
 	LSError lserror;
 	LSErrorInit(&lserror);
 
-	if (strncmp(newPath, ROTATED_LOG_FILE_PATH,
-	            strlen(ROTATED_LOG_FILE_PATH)) == 0)
+	gchar *payload = g_strdup_printf("{\"filepath\":\"%s\"}", newPath);
+
+	if (!LSSubscriptionReply(g_lsServiceHandle, ROTATION_SUBSCRIPTION_KEY,
+	                         payload, &lserror))
 	{
 
-		snprintf(logReportCmd, sizeof(logReportCmd), "{\"filepath\":\"%s.gz\"}",
-		         newPath);
-
-		if (!LSCallOneReply(g_lsServiceHandle,
-		            "luna://com.webos.rdxd/makelogreport",
-		            logReportCmd,
-		            handle_makelogreport_callback,
-		            NULL,
-		            NULL,
-		            &lserror))
-		{
-			PmLogError(g_context, "LSCALL_ERROR", 1, PMLOGKS("errorText", lserror.message), "");
-		}
+		LSErrorLog(g_context, "LSSUBREPLY_ERROR", &lserror);
+		LSErrorFree(&lserror);
+		result = false;
 	}
 
-	LSErrorFree(&lserror);
-
+	g_free(payload);
 	g_free(newPath);
 
-	return FALSE;
+	return result;
 }
 
 /**
  * @brief DoRotateLogFile
  *
  * Rotate the specified log set.  It should already have been verified
- * that the base log exists.
+ * that the base log exists. If startTaskInNewThread is true, add a new
+ * task for heavy operation thread, to prevent syslog locking.
  *
  * @param logFileP
+ * @param startTaskInNewThread
  *
  * @return 1 if the rotation was performed, else 0.
  */
-static int DoRotateLogFile(PmLogFile_t *logFileP, bool inHeavyThread)
+static int DoRotateLogFile(PmLogFile_t *logFileP, bool startTaskInNewThread)
 {
 	int             result;
 	char            oldPath[ PATH_MAX ];
 	char            newPath[ PATH_MAX ];
 	int             i;
 
-	if (logFileP->rotations <= 0)
+	/* If daemon has no rotation subscribers, just compress
+	 * the file, else notify subscribers and let them manage
+	 * rotated log file. */
+	if (g_atomic_int_get(&g_haveRotSubscription) == 0)
 	{
-		/* we require rotations >= 1 */
-		ErrPrint("ROTATE_LOG ROTATION %d invalid number of rotations",logFileP->rotations);
-		return 0;
-	}
+		if (logFileP->rotations <= 0)
+		{
+			/* we require rotations >= 1 */
+			ErrPrint("ROTATE_LOG ROTATION %d invalid number of rotations",logFileP->rotations);
+			return 0;
+		}
 
-	/* rotate the log file set
-	   rotations = 1 then { log, log.0.gz }
-	   rotations = 2 then { log, log.0.gz, log.1.gz }
-	   ... */
-	for (i = logFileP->rotations - 1; i > 0; i--)
-	{
-		snprintf(oldPath, sizeof(oldPath), PMLOGDAEMON_FILE_ROTATION_PATTERN,
-		         logFileP->path, i - 1);
-		snprintf(newPath, sizeof(newPath), PMLOGDAEMON_FILE_ROTATION_PATTERN,
-		         logFileP->path, i);
-		/* note that rename will replace the old file if present */
-		result = rename(oldPath, newPath);
+		/* rotate the log file set
+		   rotations = 1 then { log, log.0.gz }
+		   rotations = 2 then { log, log.0.gz, log.1.gz }
+		   ... */
+		for (i = logFileP->rotations - 1; i > 0; i--)
+		{
+			snprintf(oldPath, sizeof(oldPath), PMLOGDAEMON_FILE_ROTATION_PATTERN,
+			         logFileP->path, i - 1);
+			snprintf(newPath, sizeof(newPath), PMLOGDAEMON_FILE_ROTATION_PATTERN,
+			         logFileP->path, i);
+			/* note that rename will replace the old file if present */
+			result = rename(oldPath, newPath);
+
+			if (result < 0)
+			{
+				if (errno != ENOENT)
+				{
+					ErrPrint("RotateLogFile: rename error: %s\n", strerror(errno));
+				}
+			}
+		}
+
+		/* the assumption is that the current file is flushed by the rename */
+		snprintf(newPath, sizeof(newPath), "%s.%d", logFileP->path, 0);
+		result = rename(logFileP->path, newPath);
 
 		if (result < 0)
 		{
-			if (errno != ENOENT)
+			ErrPrint("RotateLogFile: rename error: %s\n", strerror(errno));
+		}
+
+		if (startTaskInNewThread)
+		{
+			AddHeavyOperationTask(&heavyOperationThread, &CompressFile, g_strdup(newPath));
+		}
+		else
+		{
+			CompressFile(g_strdup(newPath));
+		}
+	}
+	/* Else we have rotation subscribers, i.e. g_rotSubCount > 0 */
+	else
+	{
+		snprintf(newPath, sizeof(newPath), "%s.XXXXXX", logFileP->path);
+
+		int tmp_fd = mkstemp(newPath);
+		if (tmp_fd == -1)
+		{
+			ErrPrint("RotateLogFile: tmp file creation error: %s\n", strerror(errno));
+		}
+		else
+		{
+			if (close(tmp_fd) == -1)
+			{
+				ErrPrint("RotateLogFile: failed to close tmp file: %s\n", strerror(errno));
+			}
+			result = rename(logFileP->path, newPath);
+
+			if (result < 0)
 			{
 				ErrPrint("RotateLogFile: rename error: %s\n", strerror(errno));
 			}
+			else
+			{
+				if (startTaskInNewThread)
+				{
+					AddHeavyOperationTask(&heavyOperationThread, &DoNotifySubscribers, g_strdup(newPath));
+				}
+				else
+				{
+					DoNotifySubscribers(g_strdup(newPath));
+				}
+			}
 		}
 	}
-
-	/* the assumption is that the current file is flushed by the rename */
-	snprintf(newPath, sizeof(newPath), "%s.%d", logFileP->path, 0);
-	result = rename(logFileP->path, newPath);
-
-	if (result < 0)
-	{
-		ErrPrint("RotateLogFile: rename error: %s\n", strerror(errno));
-	}
-
-	if (inHeavyThread)
-		DoCompressAndNotify(g_strdup(newPath));
-	else
-		AddHeavyOperationTask(&heavyOperationThread, &DoCompressAndNotify, g_strdup(newPath));
 
 	return 1;
 }
@@ -670,7 +720,7 @@ static int RotateLogFile(PmLogFile_t *logFileP, int fd, size_t numToWrite)
 		return 0;
 	}
 
-	result = DoRotateLogFile(logFileP, false);
+	result = DoRotateLogFile(logFileP, true);
 
 	return result;
 }
@@ -785,10 +835,11 @@ Retry:
  * @brief ForceRotateLogFile
  *
  * @param logFileP
+ * @param startTaskInNewThread
  *
  * @return 0 on success else err code.
  */
-static int ForceRotateLogFile(PmLogFile_t *logFileP, bool inHeavyThread)
+static int ForceRotateLogFile(PmLogFile_t *logFileP, bool startTaskInNewThread)
 {
 	int             result;
 	struct stat     fileStat;
@@ -797,7 +848,7 @@ static int ForceRotateLogFile(PmLogFile_t *logFileP, bool inHeavyThread)
 
 	if (result != 0)
 	{
-		ErrPrint("ForceRotateLogFile: stat error: %s\n", strerror(errno));
+		ErrPrint("ForceRotateLogFile: stat error for the path %s: %s\n", logFileP->path, strerror(errno));
 		return 0;
 	}
 
@@ -807,7 +858,7 @@ static int ForceRotateLogFile(PmLogFile_t *logFileP, bool inHeavyThread)
 		return 0;
 	}
 
-	result = DoRotateLogFile(logFileP, inHeavyThread);
+	result = DoRotateLogFile(logFileP, startTaskInNewThread);
 
 	return result;
 }
@@ -1323,7 +1374,7 @@ static bool HandleLogCommand(const char *msg)
 	{
 		DbgPrint("HandleLogCommand: forcing rotation of main log\n");
 		logFileP = &g_logFiles[ 0 ];
-		(void) ForceRotateLogFile(logFileP, false);
+		(void) ForceRotateLogFile(logFileP, true);
 		return true;
 	}
 
@@ -2312,7 +2363,7 @@ static bool force_rotate_ls(LSHandle *lsHandle, LSMessage *lsMessage, void *wd)
 
 	logFileP = &g_logFiles[ 0 ];
 
-	if (ForceRotateLogFile(logFileP, true))
+	if (ForceRotateLogFile(logFileP, false))
 	{
 		jobject_put(reply, J_CSTR_TO_JVAL("returnValue"), jboolean_create(true));
 	}
@@ -2341,10 +2392,97 @@ static bool force_rotate_ls(LSHandle *lsHandle, LSMessage *lsMessage, void *wd)
 	return (ret_val != 0);
 }
 
+/////////////////////////////////////////////////////////////////
+//                                                             //
+//            Start of API documentation comment block         //
+//                                                             //
+/////////////////////////////////////////////////////////////////
+/**
+@page com_webos_pmlogd com.webos.pmlogd
+@{
+@section com_webos_pmlogd_subscribe_on_rotations subscribeOnRotations
+
+Add client to rotation subscription list
+
+@par Returns
+
+Name | Required | Type | Description
+-----|--------|------|----------
+returnValue | yes | Boolean | True on success, false otherwise
+errorText | no | String | Error text
+@}
+*/
+/////////////////////////////////////////////////////////////////
+//                                                             //
+//            End of API documentation comment block           //
+//                                                             //
+/////////////////////////////////////////////////////////////////
+static bool subscribe_on_rotations_ls(LSHandle *lsHandle, LSMessage *lsMessage, void *wd)
+{
+	bool result = true;
+	jvalue_ref reply = jobject_create();
+
+	LSError lserror;
+	LSErrorInit(&lserror);
+
+	if (g_atomic_int_get(&g_haveRotSubscription) != 0)
+	{
+		jobject_put(reply, J_CSTR_TO_JVAL("returnValue"), jboolean_create(false));
+		jobject_put(reply, J_CSTR_TO_JVAL("subscribed"), jboolean_create(false));
+		jobject_put(reply, J_CSTR_TO_JVAL("errorText"),
+		            jstring_create("Already have a subscriber. Can't add another one."));
+	}
+	else if (!LSSubscriptionAdd(lsHandle, ROTATION_SUBSCRIPTION_KEY, lsMessage, &lserror))
+	{
+		jobject_put(reply, J_CSTR_TO_JVAL("returnValue"), jboolean_create(false));
+		jobject_put(reply, J_CSTR_TO_JVAL("subscribed"), jboolean_create(false));
+		jobject_put(reply, J_CSTR_TO_JVAL("errorText"),
+		            jstring_create("Internal error. Can't add subscription"));
+
+		LSErrorLog(g_context, "LSSUBADD_ERROR", &lserror);
+		LSErrorFree(&lserror);
+
+		result = false;
+	}
+	else
+	{
+		g_atomic_int_inc(&g_haveRotSubscription);
+
+		jobject_put(reply, J_CSTR_TO_JVAL("returnValue"), jboolean_create(true));
+		jobject_put(reply, J_CSTR_TO_JVAL("subscribed"), jboolean_create(true));
+	}
+
+	if (!LSMessageReply(lsHandle, lsMessage,
+	                    jvalue_tostring_simple(reply),
+	                    &lserror))
+
+	{
+		LSErrorLog(g_context, "LSSUBREPLY_ERROR", &lserror);
+		LSErrorFree(&lserror);
+
+		result = false;
+	}
+
+	DbgPrint("%s called\n", __FUNCTION__);
+
+	j_release(&reply);
+	return result;
+}
+
+static bool sub_cancel_func(LSHandle *sh, LSMessage *reply, void *ctx)
+{
+	g_atomic_int_dec_and_test(&g_haveRotSubscription);
+
+	DbgPrint("%s called\n", __FUNCTION__);
+
+	return true;
+}
+
 static LSMethod lsMethod_public[] =
 {
 	{ "forcerotate", force_rotate_ls },
 	{ "backuplogs", backup_logs_ls },
+	{ "subscribeOnRotations", subscribe_on_rotations_ls },
 	{},
 };
 
@@ -2355,30 +2493,32 @@ static bool register_luna_service(GMainLoop *mainLoop)
 	LSErrorInit(&g_lsError);
 
 	result = LSRegister(PMLOGD_APP_ID, &g_lsServiceHandle, &g_lsError);
-
 	if (!result)
 	{
-		PmLogError(g_context, "LSREGISTER_ERROR", 1, PMLOGKS("ErrorText",
-		           "LSRegister ERROR"), "");
+		LSErrorLog(g_context, "LSREGISTER_ERROR", &g_lsError);
 		return false;
 	}
 
 	result = LSRegisterCategory(g_lsServiceHandle, "/", lsMethod_public, NULL, NULL,
 	                            &g_lsError);
-
 	if (!result)
 	{
-		PmLogError(g_context, "LSREGISTER_ERROR", 1, PMLOGKS("ErrorText",
-		           "LSRegisterCategory ERROR"), "");
+		LSErrorLog(g_context, "LSREGCAT_ERROR", &g_lsError);
+		return false;
+	}
+
+	result = LSSubscriptionSetCancelFunction(g_lsServiceHandle, &sub_cancel_func,
+	                                         NULL, &g_lsError);
+	if (!result)
+	{
+		LSErrorLog(g_context, "LSSUBCANCFUN_ERROR", &g_lsError);
 		return false;
 	}
 
 	result = LSGmainAttach(g_lsServiceHandle, mainLoop, &g_lsError);
-
 	if (!result)
 	{
-		PmLogError(g_context, "LSREGISTER_ERROR", 1, PMLOGKS("ErrorText",
-		           "LSGmainAttach ERROR"), "");
+		LSErrorLog(g_context, "LSATTACH_ERROR", &g_lsError);
 		return false;
 	}
 
